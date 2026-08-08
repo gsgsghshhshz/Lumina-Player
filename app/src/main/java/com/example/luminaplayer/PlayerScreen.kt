@@ -245,7 +245,8 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     Slider(value = volume, valueRange = 0f..1f, onValueChange = { volume = it; exoPlayer.volume = it }, modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
                         colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF)))
                 }
-            }
+            } // Column end
+            } // if controls end
         }
 
         // Speed menu
