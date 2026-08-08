@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,7 +39,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 if (videoUri != null) {
-                    VideoPlayerScreen(
+                    PlayerScreen(
                         videoUri = videoUri!!,
                         onBack = { videoUri = null }
                     )
@@ -90,14 +91,14 @@ fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                "Lumina Player Pro",
+                "Lumina Player",
                 color = Color.White,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "Video Player Pro",
+                "Professional Video Player",
                 color = Color.Gray,
                 fontSize = 16.sp
             )

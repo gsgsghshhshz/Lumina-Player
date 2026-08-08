@@ -1,6 +1,5 @@
 package com.example.luminaplayer
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -17,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,13 +28,11 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 
 @Composable
-fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
-    val context = LocalContext.current
+fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var isPlaying by remember { mutableStateOf(true) }
     var showControls by remember { mutableStateOf(true) }
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(1L) }
-    var buffered by remember { mutableIntStateOf(0) }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
     var brightness by remember { mutableFloatStateOf(0.5f) }
     var volume by remember { mutableFloatStateOf(1f) }
@@ -46,10 +42,9 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var subtitleEnabled by remember { mutableStateOf(true) }
     var subtitleSize by remember { mutableFloatStateOf(24f) }
     var subtitleColor by remember { mutableStateOf(Color(0xFFDAA520)) }
-    var subtitleOutline by remember { mutableStateOf(true) }
 
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
+        ExoPlayer.Builder(androidx.compose.ui.platform.LocalContext.current).build().apply {
             setMediaItem(MediaItem.fromUri(videoUri))
             playWhenReady = true
             videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
@@ -61,7 +56,6 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
             exoPlayer.let { p ->
                 position = p.currentPosition
                 duration = p.duration.coerceAtLeast(1)
-                buffered = p.bufferedPercentage
                 isPlaying = p.isPlaying
             }
             delay(200)
@@ -87,12 +81,16 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     detectTapGestures(
                         onTap = { showControls = !showControls },
                         onDoubleTap = { offset ->
-                            if (offset.x < size.width / 3) {
-                                exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000))
-                            } else if (offset.x > size.width * 2 / 3) {
-                                exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000))
-                            } else {
-                                exoPlayer.playWhenReady = !isPlaying
+                            when {
+                                offset.x < size.width / 3 -> {
+                                    exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000))
+                                }
+                                offset.x > size.width * 2 / 3 -> {
+                                    exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000))
+                                }
+                                else -> {
+                                    exoPlayer.playWhenReady = !isPlaying
+                                }
                             }
                         }
                     )
@@ -101,15 +99,9 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
                         val x = change.position.x
-                        val y = change.position.y
                         when {
                             x < size.width / 3f -> {
                                 brightness = (brightness - dragAmount.y / size.height).coerceIn(0f, 1f)
-                                val activity = context as? android.app.Activity
-                                activity?.window?.attributes?.let { lp ->
-                                    lp.screenBrightness = brightness
-                                    activity.window.attributes = lp
-                                }
                             }
                             x > size.width * 2f / 3f -> {
                                 volume = (volume - dragAmount.y / size.height).coerceIn(0f, 1f)
@@ -128,7 +120,6 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
 
         if (showControls) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -147,17 +138,12 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         Icon(Icons.Default.Favorite, "Speed", tint = Color.White)
                     }
                     IconButton(onClick = { isLocked = !isLocked }) {
-                        Icon(
-                            Icons.Default.Lock,
-                            "Lock",
-                            tint = Color.White
-                        )
+                        Icon(Icons.Default.Lock, "Lock", tint = Color.White)
                     }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Speed menu
                 if (showSpeedMenu) {
                     Row(
                         modifier = Modifier
@@ -184,7 +170,6 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     }
                 }
 
-                // Subtitle settings panel
                 if (showSubtitleSettings) {
                     Card(
                         modifier = Modifier
@@ -216,36 +201,32 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             Text("Color", color = Color.Gray)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(
-                                    Color(0xFFDAA520) to "Gold",
-                                    Color.White to "White",
-                                    Color.Yellow to "Yellow",
-                                    Color.Cyan to "Cyan"
-                                ).forEach { (color, name) ->
+                                    Color(0xFFDAA520),
+                                    Color.White,
+                                    Color.Yellow,
+                                    Color.Cyan
+                                ).forEach { color ->
                                     Box(
                                         modifier = Modifier
                                             .size(36.dp)
                                             .clip(CircleShape)
                                             .background(color)
+                                            .pointerInput(Unit) {
+                                                detectTapGestures { subtitleColor = color }
+                                            }
                                     )
                                 }
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Outline", color = Color.White, modifier = Modifier.weight(1f))
-                                Switch(checked = subtitleOutline, onCheckedChange = { subtitleOutline = it })
                             }
                         }
                     }
                 }
 
-                // Bottom controls
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.Black.copy(alpha = 0.7f))
                         .padding(16.dp)
                 ) {
-                    // Progress bar
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(formatTime(position), color = Color.Gray, fontSize = 12.sp)
                         Slider(
@@ -263,7 +244,6 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         Text(formatTime(duration), color = Color.Gray, fontSize = 12.sp)
                     }
 
-                    // Control buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -296,7 +276,6 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         }
                     }
 
-                    // Extra controls
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -341,7 +320,6 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
             }
         }
 
-        // Lock overlay
         if (isLocked) {
             Box(
                 modifier = Modifier

@@ -1,58 +1,49 @@
 # Lumina Player Pro 🎬
 
-ویدیو پلیر حرفه‌ای فارسی — بهتر از Just Player و MX Player
+Professional Video Player with Persian subtitle support
 
-## ویژگی‌ها
+## Features
 
-### 🎬 پخش ویدیو
-- ✅ پشتیبانی از همه فرمت‌ها (MP4, MKV, AVI, FLV, WebM)
-- ✅ Hardware Accelerated
-- ✅ HDR10+ Support
-- ✅ Dolby Vision
-- ✅ Auto Frame Rate
-- ✅ PiP (Picture in Picture)
-- ✅ کنترل سرعت پخش (0.25x تا 2x)
+### Video Playback
+- ExoPlayer with hardware acceleration
+- HDR10+ Support
+- Auto Frame Rate
+- Picture-in-Picture
+- Speed control (0.25x to 2x)
 
-### 🎨 کنترل‌های حرکتی (مثل MX Player)
-- ✅ دابل‌کلیک چپ: ۱۰ ثانیه عقب
-- ✅ دابل‌کلیک راست: ۱۰ ثانیه جلو
-- ✅ دابل‌کلیک وسط: Play/Pause
-- ✅ کشیدن چپ: روشنایی
-- ✅ کشیدن راست: صدا
-- ✅ کشیدن وسط: Seek
+### Gesture Controls (Like MX Player)
+- Double tap left: Rewind 10s
+- Double tap right: Forward 10s
+- Double tap center: Play/Pause
+- Drag left: Brightness
+- Drag right: Volume
+- Drag center: Seek
 
-### 📝 زیرنویس فارسی (مثل MX Player)
-- ✅ اندازه فونت (12-48)
-- ✅ رنگ زیرنویس (طلایی، سفید، زرد، آبی، سبز، قرمز)
-- ✅ حاشیه متن
-- ✅ سایه متن
-- ✅ پس‌زمینه زیرنویس
-- ✅ موقعیت عمودی
-- ✅ پشتیبانی از SRT, ASS, VTT
+### Subtitle Customization
+- Font size (12-48)
+- Color (Gold, White, Yellow, Cyan)
+- Outline width
+- Shadow
+- Background opacity
+- Vertical position
 
-### 🎛️ کنترل‌های حرفه‌ای
-- ✅ قفل صفحه (Kids Lock)
-- ✅ روشنایی دستی
-- ✅ صدای دستی
-- ✅ سرعت پخش
-- ✅ پیشرفت پخش باUFFER
+### Professional Controls
+- Screen lock
+- Manual brightness
+- Manual volume
+- Playback speed
+- Progress bar
 
-### 📱 طراحی
-- ✅ Material Design 3
-- ✅ رابط کاربری فارسی
-- ✅ حالت تاریک
-- ✅ طراحی مینیمال و زیبا
-
-## تکنولوژی
+## Tech Stack
 - Kotlin
 - Jetpack Compose
 - Media3 ExoPlayer
 - Material Design 3
 
-## نصب
-1. فایل APK رو دانلود کن
-2. Settings → Security → Unknown Sources → ON
-3. APK رو نصب کن
+## Installation
+1. Download APK file
+2. Enable Unknown Sources
+3. Install APK
 
-## توسعه‌دهنده
+## Developer
 Aryan Heshmati
