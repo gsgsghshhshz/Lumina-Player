@@ -316,7 +316,7 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             Text("Brightness", color = Color.Gray, fontSize = 10.sp)
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.VolumeUp, null, tint = Color(0xFF00BFFF), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Star, null, tint = Color(0xFF00BFFF), modifier = Modifier.size(18.dp))
                             Slider(
                                 value = volume,
                                 valueRange = 0f..1f,
