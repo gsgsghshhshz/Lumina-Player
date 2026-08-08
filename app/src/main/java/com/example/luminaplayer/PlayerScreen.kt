@@ -195,6 +195,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
 
         // Controls overlay
         if (!isLocked && showControls) {
+            Column(modifier = Modifier.fillMaxSize()) {
             // Top bar - Just Player style
             Row(
                 modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 16.dp, vertical = 12.dp),
