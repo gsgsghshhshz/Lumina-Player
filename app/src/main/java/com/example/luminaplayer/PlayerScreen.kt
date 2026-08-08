@@ -1,6 +1,8 @@
 package com.example.luminaplayer
 
+import android.app.Activity
 import android.net.Uri
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -53,18 +55,27 @@ data class SubtitleConfig(
 @Composable
 fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
     val context = LocalContext.current
+    val activity = context as? Activity
+    
     var isPlaying by remember { mutableStateOf(true) }
     var showControls by remember { mutableStateOf(true) }
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(1L) }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
     var brightness by remember { mutableFloatStateOf(0.5f) }
-    var volume by remember { mutableFloatStateOf(1f) }
+    var volume by remember { mutableFloatStateOf(0.8f) }
     var isLocked by remember { mutableStateOf(false) }
     var showSpeedMenu by remember { mutableStateOf(false) }
     var showSubtitleSettings by remember { mutableStateOf(false) }
     var subtitleConfig by remember { mutableStateOf(SubtitleConfig()) }
     var isPrepared by remember { mutableStateOf(false) }
+
+    // اعمال روشنایی به صفحه
+    LaunchedEffect(brightness) {
+        activity?.window?.attributes = activity.window.attributes.apply {
+            screenBrightness = brightness
+        }
+    }
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -146,7 +157,9 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         change.consume()
                         val x = change.position.x
                         when {
-                            x < size.width / 3f -> brightness = (brightness - dragAmount.y / size.height).coerceIn(0f, 1f)
+                            x < size.width / 3f -> {
+                                brightness = (brightness - dragAmount.y / size.height).coerceIn(0.05f, 1f)
+                            }
                             x > size.width * 2f / 3f -> {
                                 volume = (volume - dragAmount.y / size.height).coerceIn(0f, 1f)
                                 exoPlayer.volume = volume
@@ -199,7 +212,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     }
                 }
 
-                // Subtitle Settings Panel (VLC Style)
+                // Subtitle Settings Panel
                 if (showSubtitleSettings) {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -210,19 +223,16 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             Text("Subtitle Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Font Size
                             Text("Size: ${subtitleConfig.fontSize.toInt()}", color = Color.Gray)
                             Slider(value = subtitleConfig.fontSize, valueRange = 12f..48f,
                                 onValueChange = { subtitleConfig = subtitleConfig.copy(fontSize = it) },
                                 colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
 
-                            // Scale
                             Text("Scale: ${subtitleConfig.fontScale.toInt()}%", color = Color.Gray)
                             Slider(value = subtitleConfig.fontScale, valueRange = 50f..200f,
                                 onValueChange = { subtitleConfig = subtitleConfig.copy(fontScale = it) },
                                 colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
 
-                            // Color
                             Text("Color", color = Color.Gray)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                                 listOf(Color.White to "W", Color(0xFFDAA520) to "G", Color.Yellow to "Y", Color.Cyan to "C", Color(0xFF00FF00) to "R").forEach { (color, label) ->
@@ -231,19 +241,16 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                 }
                             }
 
-                            // Bold
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.isBold, onCheckedChange = { subtitleConfig = subtitleConfig.copy(isBold = it) })
                                 Text("Bold", color = Color.White)
                             }
 
-                            // Background
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.backgroundEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(backgroundEnabled = it) })
                                 Text("Background", color = Color.White)
                             }
 
-                            // Border/Outline
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.borderEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(borderEnabled = it) })
                                 Text("Border", color = Color.White)
@@ -255,7 +262,6 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                     colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
                             }
 
-                            // Shadow
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.shadowEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(shadowEnabled = it) })
                                 Text("Shadow", color = Color.White)
@@ -267,7 +273,6 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                 }
                             }
 
-                            // Position
                             Text("Position: ${(subtitleConfig.position * 100).toInt()}%", color = Color.Gray)
                             Slider(value = subtitleConfig.position, valueRange = 0.1f..0.95f,
                                 onValueChange = { subtitleConfig = subtitleConfig.copy(position = it) },
@@ -300,22 +305,55 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
                     }
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700), modifier = Modifier.size(18.dp))
-                            Slider(value = brightness, valueRange = 0f..1f, onValueChange = { brightness = it }, modifier = Modifier.width(80.dp),
-                                colors = SliderDefaults.colors(thumbColor = Color(0xFFFFD700), activeTrackColor = Color(0xFFFFD700)))
-                            Text("Brightness", color = Color.Gray, fontSize = 10.sp)
+                    // Brightness and Volume controls - بزرگ‌تر و بهتر
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Brightness
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700), modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Slider(
+                                value = brightness,
+                                valueRange = 0.05f..1f,
+                                onValueChange = { brightness = it },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFFFD700),
+                                    activeTrackColor = Color(0xFFFFD700)
+                                )
+                            )
+                            Text("🔆 ${(brightness * 100).toInt()}%", color = Color(0xFFFFD700), fontSize = 11.sp)
                         }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Star, null, tint = Color(0xFF00BFFF), modifier = Modifier.size(18.dp))
-                            Slider(value = volume, valueRange = 0f..1f, onValueChange = { volume = it; exoPlayer.volume = it }, modifier = Modifier.width(80.dp),
-                                colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF)))
-                            Text("Volume", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("${playbackSpeed}x", color = Color(0xFFE94560), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("Speed", color = Color.Gray, fontSize = 10.sp)
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // Volume
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.VolumeUp, null, tint = Color(0xFF00BFFF), modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Slider(
+                                value = volume,
+                                valueRange = 0f..1f,
+                                onValueChange = {
+                                    volume = it
+                                    exoPlayer.volume = it
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFF00BFFF),
+                                    activeTrackColor = Color(0xFF00BFFF)
+                                )
+                            )
+                            Text("🔊 ${(volume * 100).toInt()}%", color = Color(0xFF00BFFF), fontSize = 11.sp)
                         }
                     }
                 }
