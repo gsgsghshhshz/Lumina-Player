@@ -8,8 +8,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,7 +15,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -65,7 +62,7 @@ fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("🎬 Lumina Player") },
+                title = { Text("Lumina Player") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF1A1A2E)
                 ),
@@ -87,7 +84,7 @@ fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
-                Icons.Default.PlayCircleFilled,
+                Icons.Default.PlayArrow,
                 contentDescription = null,
                 modifier = Modifier.size(120.dp),
                 tint = Color(0xFFE94560)
@@ -101,7 +98,7 @@ fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "ویدیو پلیر حرفه‌ای فارسی",
+                "Video Player Pro",
                 color = Color.Gray,
                 fontSize = 16.sp
             )
@@ -117,9 +114,9 @@ fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.Folder, null, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("انتخاب ویدیو", fontSize = 18.sp)
+                Text("Select Video", fontSize = 18.sp)
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -130,17 +127,17 @@ fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
             ) {
                 FeatureCard(
                     icon = Icons.Default.Subtitles,
-                    title = "زیرنویس فارسی",
+                    title = "Subtitles",
                     modifier = Modifier.weight(1f)
                 )
                 FeatureCard(
                     icon = Icons.Default.HighQuality,
-                    title = "کیفیت بالا",
+                    title = "Quality",
                     modifier = Modifier.weight(1f)
                 )
                 FeatureCard(
                     icon = Icons.Default.Speed,
-                    title = "سرعت پخش",
+                    title = "Speed",
                     modifier = Modifier.weight(1f)
                 )
             }
