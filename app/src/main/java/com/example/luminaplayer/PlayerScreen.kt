@@ -279,11 +279,9 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                     modifier = Modifier.fillMaxWidth()
                                         .clickable {
                                             val override = TrackSelectionOverride(track.groupIndex, listOf(track.trackIndex))
-                                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                                                .buildUpon()
-                                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                                .setOverrideForType(override)
-                                                .build()
+                                            val paramsBuilder = exoPlayer.trackSelectionParameters.buildUpon()
+                                            paramsBuilder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                            exoPlayer.trackSelectionParameters = paramsBuilder.build()
                                             selectedTrackLabel = track.label
                                             subtitleEnabled = true
                                         }
@@ -355,7 +353,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))) { Text("Choose Font", fontSize = 11.sp) }
                                 Button(onClick = { subtitleConfig = subtitleConfig.copy(fontPath = ""); customFontFamily = null },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray))) { Text("Default", fontSize = 11.sp) }
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) { Text("Default", fontSize = 11.sp) }
                             }
 
                             Text("Size", color = Color.Gray)
