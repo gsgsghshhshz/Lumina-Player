@@ -22,6 +22,7 @@ class PlayerActivity : ComponentActivity() {
                 if (videoUri != null) {
                     PlayerScreen(
                         videoUri = videoUri,
+                        subtitleUri = null,
                         onBack = { finish() }
                     )
                 }
