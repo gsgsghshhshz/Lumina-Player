@@ -1,7 +1,6 @@
 package com.example.luminaplayer
 
 import android.app.Activity
-import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.view.WindowManager
 import androidx.compose.ui.graphics.graphicsLayer
@@ -30,8 +29,6 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
-import androidx.media3.common.MediaItem.SubtitleConfiguration
-import androidx.media3.common.MimeTypes
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
@@ -72,6 +69,14 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
     var subtitleConfig by remember { mutableStateOf(SubtitleConfig()) }
     var isPrepared by remember { mutableStateOf(false) }
     var videoRotation by remember { mutableFloatStateOf(0f) }
+    var subtitleEntries by remember { mutableStateOf<List<SubtitleEntry>>(emptyList()) }
+
+    // پارس زیرنویس
+    LaunchedEffect(subtitleUri) {
+        if (subtitleUri != null) {
+            subtitleEntries = SubtitleParser.detectAndParse(context, subtitleUri)
+        }
+    }
 
     // اعمال روشنایی به صفحه
     LaunchedEffect(brightness) {
@@ -82,20 +87,8 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
-            val subtitleConfigs = mutableListOf<SubtitleConfiguration>()
-            if (subtitleUri != null) {
-                subtitleConfigs.add(
-                    SubtitleConfiguration.Builder(subtitleUri)
-                        .setMimeType(MimeTypes.APPLICATION_SUBRIP)
-                        .setLanguage("fa")
-                        .setLabel("فارسی")
-                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                        .build()
-                )
-            }
             val mediaItem = MediaItem.Builder()
                 .setUri(videoUri)
-                .setSubtitleConfigurations(subtitleConfigs)
                 .build()
             setMediaItem(mediaItem)
             prepare()
@@ -175,6 +168,14 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         }
                     }
                 }
+        )
+
+        // رندر کاستوم زیرنویس
+        SubtitleOverlay(
+            entries = subtitleEntries,
+            currentPositionMs = position,
+            config = subtitleConfig,
+            modifier = Modifier.fillMaxSize()
         )
 
         if (showControls) {
@@ -312,13 +313,12 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
                     }
 
-                    // Brightness and Volume controls - بزرگ‌تر و بهتر
+                    // Brightness and Volume controls
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Brightness
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.weight(1f)
@@ -330,17 +330,13 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                 valueRange = 0.05f..1f,
                                 onValueChange = { brightness = it },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFFFFD700),
-                                    activeTrackColor = Color(0xFFFFD700)
-                                )
+                                colors = SliderDefaults.colors(thumbColor = Color(0xFFFFD700), activeTrackColor = Color(0xFFFFD700))
                             )
-                            Text("🔆 ${(brightness * 100).toInt()}%", color = Color(0xFFFFD700), fontSize = 11.sp)
+                            Text("Brightness ${(brightness * 100).toInt()}%", color = Color(0xFFFFD700), fontSize = 11.sp)
                         }
 
                         Spacer(modifier = Modifier.width(12.dp))
 
-                        // Volume
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.weight(1f)
@@ -350,17 +346,11 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             Slider(
                                 value = volume,
                                 valueRange = 0f..1f,
-                                onValueChange = {
-                                    volume = it
-                                    exoPlayer.volume = it
-                                },
+                                onValueChange = { volume = it; exoPlayer.volume = it },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF00BFFF),
-                                    activeTrackColor = Color(0xFF00BFFF)
-                                )
+                                colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF))
                             )
-                            Text("🔊 ${(volume * 100).toInt()}%", color = Color(0xFF00BFFF), fontSize = 11.sp)
+                            Text("Volume ${(volume * 100).toInt()}%", color = Color(0xFF00BFFF), fontSize = 11.sp)
                         }
                     }
                 }
