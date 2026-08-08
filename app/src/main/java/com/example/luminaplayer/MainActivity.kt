@@ -6,7 +6,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -114,7 +113,7 @@ fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Default.Folder, null, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("Select Video", fontSize = 18.sp)
             }
@@ -126,17 +125,17 @@ fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 FeatureCard(
-                    icon = Icons.Default.Subtitles,
+                    icon = Icons.Default.List,
                     title = "Subtitles",
                     modifier = Modifier.weight(1f)
                 )
                 FeatureCard(
-                    icon = Icons.Default.HighQuality,
+                    icon = Icons.Default.Star,
                     title = "Quality",
                     modifier = Modifier.weight(1f)
                 )
                 FeatureCard(
-                    icon = Icons.Default.Speed,
+                    icon = Icons.Default.Favorite,
                     title = "Speed",
                     modifier = Modifier.weight(1f)
                 )
