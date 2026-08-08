@@ -24,7 +24,7 @@ android {
 dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
-    implementation(libs.media3.decoder.av1)
+    implementation(libs.media3.decoder)
     implementation(libs.media3.datasource)
 
     implementation(platform(libs.compose.bom))
