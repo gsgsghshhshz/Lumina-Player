@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -48,36 +47,12 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var subtitleSize by remember { mutableFloatStateOf(24f) }
     var subtitleColor by remember { mutableStateOf(Color(0xFFDAA520)) }
     var subtitleOutline by remember { mutableStateOf(true) }
-    var selectedTrack by remember { mutableIntStateOf(-1) }
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
-            val mediaItem = MediaItem.Builder()
-                .setUri(videoUri)
-                .setSubtitleConfigurations(
-                    if (subtitleEnabled) {
-                        listOf(
-                            MediaItem.SubtitleConfiguration.Builder(
-                                Uri.parse("embedded")
-                            )
-                                .setMimeType(MimeTypes.APPLICATION_SUBRIP)
-                                .setLanguage("fa")
-                                .setLabel("فارسی")
-                                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                                .build()
-                        )
-                    } else emptyList()
-                )
-                .build()
-            setMediaItem(mediaItem)
+            setMediaItem(MediaItem.fromUri(videoUri))
             playWhenReady = true
-            repeatMode = Player.REPEAT_MODE_OFF
             videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-            setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS)
-            trackSelectionParameters = trackSelectionParameters.buildUpon()
-                .setPreferredAudioMimeType(MimeTypes.AUDIO_OPUS)
-                .setPreferredVideoMimeType(MimeTypes.VIDEO_H265)
-                .build()
         }
     }
 
@@ -166,10 +141,10 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = { showSubtitleSettings = !showSubtitleSettings }) {
-                        Icon(Icons.Default.Subtitles, "Subtitles", tint = Color(0xFFDAA520))
+                        Icon(Icons.Default.List, "Subtitles", tint = Color(0xFFDAA520))
                     }
                     IconButton(onClick = { showSpeedMenu = !showSpeedMenu }) {
-                        Icon(Icons.Default.Speed, "Speed", tint = Color.White)
+                        Icon(Icons.Default.Favorite, "Speed", tint = Color.White)
                     }
                     IconButton(onClick = { isLocked = !isLocked }) {
                         Icon(
@@ -219,15 +194,15 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("تنظیمات زیرنویس", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Subtitle Settings", color = Color.White, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(12.dp))
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("زیرنویس", color = Color.White, modifier = Modifier.weight(1f))
+                                Text("Subtitle", color = Color.White, modifier = Modifier.weight(1f))
                                 Switch(checked = subtitleEnabled, onCheckedChange = { subtitleEnabled = it })
                             }
 
-                            Text("اندازه: ${subtitleSize.toInt()}", color = Color.Gray)
+                            Text("Size: ${subtitleSize.toInt()}", color = Color.Gray)
                             Slider(
                                 value = subtitleSize,
                                 valueRange = 12f..48f,
@@ -238,28 +213,25 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                                 )
                             )
 
-                            Text("رنگ زیرنویس", color = Color.Gray)
+                            Text("Color", color = Color.Gray)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(
-                                    Color(0xFFDAA520) to "طلایی",
-                                    Color.White to "سفید",
-                                    Color.Yellow to "زرد",
-                                    Color.Cyan to "آبی"
+                                    Color(0xFFDAA520) to "Gold",
+                                    Color.White to "White",
+                                    Color.Yellow to "Yellow",
+                                    Color.Cyan to "Cyan"
                                 ).forEach { (color, name) ->
                                     Box(
                                         modifier = Modifier
                                             .size(36.dp)
                                             .clip(CircleShape)
                                             .background(color)
-                                            .pointerInput(Unit) {
-                                                detectTapGestures { subtitleColor = color }
-                                            }
                                     )
                                 }
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("حاشیه", color = Color.White, modifier = Modifier.weight(1f))
+                                Text("Outline", color = Color.White, modifier = Modifier.weight(1f))
                                 Switch(checked = subtitleOutline, onCheckedChange = { subtitleOutline = it })
                             }
                         }
@@ -298,10 +270,10 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000)) }) {
-                            Icon(Icons.Default.Replay10, null, tint = Color.White)
+                            Icon(Icons.Default.Refresh, null, tint = Color.White)
                         }
                         IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 5000)) }) {
-                            Icon(Icons.Default.Replay5, null, tint = Color.White)
+                            Icon(Icons.Default.Replay, null, tint = Color.White)
                         }
                         IconButton(
                             onClick = { exoPlayer.playWhenReady = !isPlaying },
@@ -317,10 +289,10 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             )
                         }
                         IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 5000)) }) {
-                            Icon(Icons.Default.Forward5, null, tint = Color.White)
+                            Icon(Icons.Default.Refresh, null, tint = Color.White)
                         }
                         IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }) {
-                            Icon(Icons.Default.Forward10, null, tint = Color.White)
+                            Icon(Icons.Default.Refresh, null, tint = Color.White)
                         }
                     }
 
@@ -330,7 +302,7 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Brightness6, null, tint = Color(0xFFFFD700), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700), modifier = Modifier.size(18.dp))
                             Slider(
                                 value = brightness,
                                 valueRange = 0f..1f,
@@ -341,7 +313,7 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                                     activeTrackColor = Color(0xFFFFD700)
                                 )
                             )
-                            Text("روشنایی", color = Color.Gray, fontSize = 10.sp)
+                            Text("Brightness", color = Color.Gray, fontSize = 10.sp)
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.VolumeUp, null, tint = Color(0xFF00BFFF), modifier = Modifier.size(18.dp))
@@ -358,11 +330,11 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                                     activeTrackColor = Color(0xFF00BFFF)
                                 )
                             )
-                            Text("صدا", color = Color.Gray, fontSize = 10.sp)
+                            Text("Volume", color = Color.Gray, fontSize = 10.sp)
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("${playbackSpeed}x", color = Color(0xFFE94560), fontWeight = FontWeight.Bold, fontSize = 14.dp)
-                            Text("سرعت", color = Color.Gray, fontSize = 10.sp)
+                            Text("${playbackSpeed}x", color = Color(0xFFE94560), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Speed", color = Color.Gray, fontSize = 10.sp)
                         }
                     }
                 }
