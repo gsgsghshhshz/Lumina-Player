@@ -1,6 +1,7 @@
 package com.example.luminaplayer
 
 import android.app.Activity
+import android.graphics.Typeface
 import android.net.Uri
 import android.view.WindowManager
 import androidx.compose.ui.graphics.graphicsLayer
@@ -9,8 +10,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -21,6 +24,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,10 +37,11 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import java.io.File
 
 data class SubtitleConfig(
     val fontPath: String = "",
-    val fontSize: Float = 22f,
+    val fontSize: Float = 16f,
     val fontScale: Float = 100f,
     val fontColor: Color = Color.White,
     val isBold: Boolean = false,
@@ -70,6 +76,14 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
     var isPrepared by remember { mutableStateOf(false) }
     var videoRotation by remember { mutableFloatStateOf(0f) }
     var subtitleEntries by remember { mutableStateOf<List<SubtitleEntry>>(emptyList()) }
+    var customFontFamily by remember { mutableStateOf<FontFamily?>(null) }
+    var showFontPicker by remember { mutableStateOf(false) }
+    var availableFonts by remember { mutableStateOf<List<File>>(emptyList()) }
+
+    // اسکن فونت‌های موجود
+    LaunchedEffect(Unit) {
+        availableFonts = FontScanner.scanFonts(context)
+    }
 
     // پارس زیرنویس
     LaunchedEffect(subtitleUri) {
@@ -82,6 +96,13 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
     LaunchedEffect(brightness) {
         activity?.window?.attributes = activity.window.attributes.apply {
             screenBrightness = brightness
+        }
+    }
+
+    // آپدیت فونت
+    LaunchedEffect(subtitleConfig.fontPath) {
+        if (subtitleConfig.fontPath.isNotEmpty()) {
+            customFontFamily = FontScanner.loadFont(context, subtitleConfig.fontPath)
         }
     }
 
@@ -175,6 +196,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
             entries = subtitleEntries,
             currentPositionMs = position,
             config = subtitleConfig,
+            customFontFamily = customFontFamily,
             modifier = Modifier.fillMaxSize()
         )
 
@@ -223,24 +245,62 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                 // Subtitle Settings Panel
                 if (showSubtitleSettings) {
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(320.dp).padding(8.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
                             Text("Subtitle Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             Spacer(modifier = Modifier.height(12.dp))
 
+                            // Font Picker
+                            Text("Font", color = Color.Gray)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { showFontPicker = true },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                                ) {
+                                    Text("Choose Font", fontSize = 12.sp)
+                                }
+                                Button(
+                                    onClick = {
+                                        subtitleConfig = subtitleConfig.copy(fontPath = "")
+                                        customFontFamily = null
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                                ) {
+                                    Text("Default", fontSize = 12.sp)
+                                }
+                            }
+                            if (subtitleConfig.fontPath.isNotEmpty()) {
+                                Text(
+                                    "Active: ${subtitleConfig.fontPath.split("/").last()}",
+                                    color = Color(0xFFDAA520),
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Font Size
                             Text("Size: ${subtitleConfig.fontSize.toInt()}", color = Color.Gray)
-                            Slider(value = subtitleConfig.fontSize, valueRange = 12f..48f,
+                            Slider(value = subtitleConfig.fontSize, valueRange = 8f..48f,
                                 onValueChange = { subtitleConfig = subtitleConfig.copy(fontSize = it) },
                                 colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
 
+                            // Scale
                             Text("Scale: ${subtitleConfig.fontScale.toInt()}%", color = Color.Gray)
                             Slider(value = subtitleConfig.fontScale, valueRange = 50f..200f,
                                 onValueChange = { subtitleConfig = subtitleConfig.copy(fontScale = it) },
                                 colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
 
+                            // Color
                             Text("Color", color = Color.Gray)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                                 listOf(Color.White to "W", Color(0xFFDAA520) to "G", Color.Yellow to "Y", Color.Cyan to "C", Color(0xFF00FF00) to "R").forEach { (color, label) ->
@@ -252,6 +312,11 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.isBold, onCheckedChange = { subtitleConfig = subtitleConfig.copy(isBold = it) })
                                 Text("Bold", color = Color.White)
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = subtitleConfig.isItalic, onCheckedChange = { subtitleConfig = subtitleConfig.copy(isItalic = it) })
+                                Text("Italic", color = Color.White)
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -287,6 +352,44 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                 colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF)))
                         }
                     }
+                }
+
+                // Font Picker Dialog
+                if (showFontPicker) {
+                    AlertDialog(
+                        onDismissRequest = { showFontPicker = false },
+                        title = { Text("Choose Font", color = Color.White) },
+                        text = {
+                            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                if (availableFonts.isEmpty()) {
+                                    Text("No fonts found. Place .ttf files in device storage.", color = Color.Gray)
+                                } else {
+                                    availableFonts.forEach { fontFile ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    subtitleConfig = subtitleConfig.copy(fontPath = fontFile.absolutePath)
+                                                    showFontPicker = false
+                                                }
+                                                .padding(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.List, null, tint = Color(0xFFDAA520), modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(fontFile.name, color = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showFontPicker = false }) {
+                                Text("Cancel", color = Color(0xFFE94560))
+                            }
+                        },
+                        containerColor = Color(0xFF2A2A2A)
+                    )
                 }
 
                 // Bottom controls

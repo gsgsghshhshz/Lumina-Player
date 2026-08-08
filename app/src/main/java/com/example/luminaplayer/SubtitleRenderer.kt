@@ -11,11 +11,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -24,6 +24,7 @@ fun SubtitleOverlay(
     entries: List<SubtitleEntry>,
     currentPositionMs: Long,
     config: SubtitleConfig,
+    customFontFamily: androidx.compose.ui.text.font.FontFamily? = null,
     modifier: Modifier = Modifier
 ) {
     val currentEntry = entries.find { entry ->
@@ -34,7 +35,7 @@ fun SubtitleOverlay(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .padding(bottom = (60 * config.position).dp),
+                .padding(bottom = (40 * config.position).dp),
             contentAlignment = Alignment.BottomCenter
         ) {
             // Border/Outline text
@@ -47,9 +48,10 @@ fun SubtitleOverlay(
                     fontStyle = if (config.isItalic) FontStyle.Italic else FontStyle.Normal,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 16.dp),
+                    fontFamily = customFontFamily,
                     style = TextStyle(
                         drawStyle = Stroke(
-                            width = config.borderWidth / 50,
+                            width = config.borderWidth / 80,
                             join = StrokeJoin.Round
                         )
                     )
@@ -65,6 +67,7 @@ fun SubtitleOverlay(
                 fontStyle = if (config.isItalic) FontStyle.Italic else FontStyle.Normal,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 16.dp),
+                fontFamily = customFontFamily,
                 style = TextStyle(
                     shadow = if (config.shadowEnabled) {
                         Shadow(
