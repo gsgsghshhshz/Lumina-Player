@@ -11,31 +11,50 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+enum class SubtitleSize(val label: String, val scale: Float) {
+    LOW(0.6f),      // کوچیک
+    MEDIUM(1.0f),   // متوسط
+    HIGH(1.5f)      // بزرگ
+}
 
 @Composable
 fun SubtitleOverlay(
     entries: List<SubtitleEntry>,
     currentPositionMs: Long,
     config: SubtitleConfig,
-    customFontFamily: androidx.compose.ui.text.font.FontFamily? = null,
+    customFontFamily: FontFamily? = null,
     modifier: Modifier = Modifier
 ) {
     val currentEntry = entries.find { entry ->
         currentPositionMs in entry.startTimeMs..entry.endTimeMs
     }
 
+    val density = LocalDensity.current
+    val screenHeightPx = with(density) { 600.dp.toPx() }
+    val baseFontSize = when {
+        screenHeightPx > 2400 -> 20f  // صفحه خیلی بزرگ
+        screenHeightPx > 1800 -> 16f  // صفحه بزرگ (مثل Poco X6 Pro)
+        screenHeightPx > 1200 -> 14f  // صفحه متوسط
+        else -> 12f                     // صفحه کوچیک
+    }
+
+    val finalFontSize = baseFontSize * config.subtitleSize.scale * (config.fontScale / 100f)
+
     if (currentEntry != null) {
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .padding(bottom = (40 * config.position).dp),
+                .padding(bottom = (50 * config.position).dp),
             contentAlignment = Alignment.BottomCenter
         ) {
             // Border/Outline text
@@ -43,7 +62,7 @@ fun SubtitleOverlay(
                 Text(
                     text = currentEntry.text,
                     color = config.borderColor,
-                    fontSize = (config.fontSize * config.fontScale / 100).sp,
+                    fontSize = finalFontSize.sp,
                     fontWeight = if (config.isBold) FontWeight.Bold else FontWeight.Normal,
                     fontStyle = if (config.isItalic) FontStyle.Italic else FontStyle.Normal,
                     textAlign = TextAlign.Center,
@@ -51,7 +70,7 @@ fun SubtitleOverlay(
                     fontFamily = customFontFamily,
                     style = TextStyle(
                         drawStyle = Stroke(
-                            width = config.borderWidth / 80,
+                            width = config.borderWidth / 100,
                             join = StrokeJoin.Round
                         )
                     )
@@ -62,7 +81,7 @@ fun SubtitleOverlay(
             Text(
                 text = currentEntry.text,
                 color = config.fontColor,
-                fontSize = (config.fontSize * config.fontScale / 100).sp,
+                fontSize = finalFontSize.sp,
                 fontWeight = if (config.isBold) FontWeight.Bold else FontWeight.Normal,
                 fontStyle = if (config.isItalic) FontStyle.Italic else FontStyle.Normal,
                 textAlign = TextAlign.Center,

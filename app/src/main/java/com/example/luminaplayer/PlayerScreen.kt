@@ -1,7 +1,6 @@
 package com.example.luminaplayer
 
 import android.app.Activity
-import android.graphics.Typeface
 import android.net.Uri
 import android.view.WindowManager
 import androidx.compose.ui.graphics.graphicsLayer
@@ -24,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,20 +35,17 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
-import java.io.File
 
 data class SubtitleConfig(
     val fontPath: String = "",
-    val fontSize: Float = 16f,
+    val subtitleSize: SubtitleSize = SubtitleSize.MEDIUM,
     val fontScale: Float = 100f,
     val fontColor: Color = Color.White,
     val isBold: Boolean = false,
     val isItalic: Boolean = false,
-    val backgroundColor: Color = Color.Black,
     val backgroundEnabled: Boolean = false,
-    val borderColor: Color = Color.Black,
     val borderEnabled: Boolean = true,
-    val borderWidth: Float = 300f,
+    val borderWidth: Float = 200f,
     val shadowEnabled: Boolean = false,
     val shadowFadeOut: Boolean = true,
     val position: Float = 0.9f,
@@ -78,39 +73,51 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
     var subtitleEntries by remember { mutableStateOf<List<SubtitleEntry>>(emptyList()) }
     var customFontFamily by remember { mutableStateOf<FontFamily?>(null) }
     var showFontPicker by remember { mutableStateOf(false) }
-    var availableFonts by remember { mutableStateOf<List<File>>(emptyList()) }
+    var availableFonts by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
 
-    // اسکن فونت‌های موجود
+    // اسکن فونت‌ها با try-catch برای جلوگیری از کرش
     LaunchedEffect(Unit) {
-        availableFonts = FontScanner.scanFonts(context)
+        try {
+            availableFonts = FontScanner.scanFonts(context)
+        } catch (e: Exception) {
+            availableFonts = emptyList()
+        }
     }
 
     // پارس زیرنویس
     LaunchedEffect(subtitleUri) {
-        if (subtitleUri != null) {
-            subtitleEntries = SubtitleParser.detectAndParse(context, subtitleUri)
+        try {
+            if (subtitleUri != null) {
+                subtitleEntries = SubtitleParser.detectAndParse(context, subtitleUri)
+            }
+        } catch (e: Exception) {
+            subtitleEntries = emptyList()
         }
     }
 
-    // اعمال روشنایی به صفحه
+    // اعمال روشنایی
     LaunchedEffect(brightness) {
-        activity?.window?.attributes = activity.window.attributes.apply {
-            screenBrightness = brightness
-        }
+        try {
+            activity?.window?.attributes = activity.window.attributes.apply {
+                screenBrightness = brightness
+            }
+        } catch (e: Exception) {}
     }
 
     // آپدیت فونت
     LaunchedEffect(subtitleConfig.fontPath) {
-        if (subtitleConfig.fontPath.isNotEmpty()) {
-            customFontFamily = FontScanner.loadFont(context, subtitleConfig.fontPath)
+        try {
+            customFontFamily = if (subtitleConfig.fontPath.isNotEmpty()) {
+                FontScanner.loadFont(subtitleConfig.fontPath)
+            } else null
+        } catch (e: Exception) {
+            customFontFamily = null
         }
     }
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
-            val mediaItem = MediaItem.Builder()
-                .setUri(videoUri)
-                .build()
+            val mediaItem = MediaItem.Builder().setUri(videoUri).build()
             setMediaItem(mediaItem)
             prepare()
             playWhenReady = true
@@ -207,19 +214,19 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White) }
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = { showSubtitleSettings = !showSubtitleSettings }) {
-                        Icon(Icons.Default.List, "Subtitles", tint = Color(0xFFDAA520))
+                        Icon(Icons.Default.List, contentDescription = "Subtitles", tint = Color(0xFFDAA520))
                     }
                     IconButton(onClick = { showSpeedMenu = !showSpeedMenu }) {
-                        Icon(Icons.Default.Favorite, "Speed", tint = Color.White)
+                        Icon(Icons.Default.Favorite, contentDescription = "Speed", tint = Color.White)
                     }
                     IconButton(onClick = { isLocked = !isLocked }) {
-                        Icon(Icons.Default.Lock, "Lock", tint = Color.White)
+                        Icon(Icons.Default.Lock, contentDescription = "Lock", tint = Color.White)
                     }
                     IconButton(onClick = { videoRotation = (videoRotation + 90f) % 360f }) {
-                        Icon(Icons.Default.Refresh, "Rotate", tint = Color(0xFF00BFFF))
+                        Icon(Icons.Default.Refresh, contentDescription = "Rotate", tint = Color(0xFF00BFFF))
                     }
                 }
 
@@ -245,7 +252,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                 // Subtitle Settings Panel
                 if (showSubtitleSettings) {
                     Card(
-                        modifier = Modifier.fillMaxWidth().height(320.dp).padding(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
                         shape = RoundedCornerShape(16.dp)
                     ) {
@@ -256,43 +263,38 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             // Font Picker
                             Text("Font", color = Color.Gray)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
                                     onClick = { showFontPicker = true },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
-                                ) {
-                                    Text("Choose Font", fontSize = 12.sp)
-                                }
+                                ) { Text("Choose Font", fontSize = 12.sp) }
                                 Button(
-                                    onClick = {
-                                        subtitleConfig = subtitleConfig.copy(fontPath = "")
-                                        customFontFamily = null
-                                    },
+                                    onClick = { subtitleConfig = subtitleConfig.copy(fontPath = ""); customFontFamily = null },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-                                ) {
-                                    Text("Default", fontSize = 12.sp)
-                                }
+                                ) { Text("Default", fontSize = 12.sp) }
                             }
                             if (subtitleConfig.fontPath.isNotEmpty()) {
-                                Text(
-                                    "Active: ${subtitleConfig.fontPath.split("/").last()}",
-                                    color = Color(0xFFDAA520),
-                                    fontSize = 10.sp
-                                )
+                                Text("Active: ${subtitleConfig.fontPath.split("/").last()}", color = Color(0xFFDAA520), fontSize = 10.sp)
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Font Size
-                            Text("Size: ${subtitleConfig.fontSize.toInt()}", color = Color.Gray)
-                            Slider(value = subtitleConfig.fontSize, valueRange = 8f..48f,
-                                onValueChange = { subtitleConfig = subtitleConfig.copy(fontSize = it) },
-                                colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
+                            // Subtitle Size - Low/Medium/High
+                            Text("Size", color = Color.Gray)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SubtitleSize.entries.forEach { size ->
+                                    Button(
+                                        onClick = { subtitleConfig = subtitleConfig.copy(subtitleSize = size) },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (subtitleConfig.subtitleSize == size) Color(0xFF2196F3) else Color.DarkGray
+                                        )
+                                    ) { Text(size.name, fontSize = 11.sp) }
+                                }
+                            }
 
                             // Scale
                             Text("Scale: ${subtitleConfig.fontScale.toInt()}%", color = Color.Gray)
@@ -303,7 +305,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             // Color
                             Text("Color", color = Color.Gray)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                                listOf(Color.White to "W", Color(0xFFDAA520) to "G", Color.Yellow to "Y", Color.Cyan to "C", Color(0xFF00FF00) to "R").forEach { (color, label) ->
+                                listOf(Color.White to "W", Color(0xFFDAA520) to "G", Color.Yellow to "Y", Color.Cyan to "C", Color(0xFF00FF00) to "R").forEach { (color, _) ->
                                     Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color)
                                         .clickable { subtitleConfig = subtitleConfig.copy(fontColor = color) })
                                 }
@@ -320,16 +322,10 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = subtitleConfig.backgroundEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(backgroundEnabled = it) })
-                                Text("Background", color = Color.White)
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.borderEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(borderEnabled = it) })
                                 Text("Border", color = Color.White)
                             }
                             if (subtitleConfig.borderEnabled) {
-                                Text("Border Width: ${subtitleConfig.borderWidth.toInt()}%", color = Color.Gray)
                                 Slider(value = subtitleConfig.borderWidth, valueRange = 100f..500f,
                                     onValueChange = { subtitleConfig = subtitleConfig.copy(borderWidth = it) },
                                     colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
@@ -338,12 +334,6 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.shadowEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(shadowEnabled = it) })
                                 Text("Shadow", color = Color.White)
-                            }
-                            if (subtitleConfig.shadowEnabled) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(checked = subtitleConfig.shadowFadeOut, onCheckedChange = { subtitleConfig = subtitleConfig.copy(shadowFadeOut = it) })
-                                    Text("Fade out", color = Color.White)
-                                }
                             }
 
                             Text("Position: ${(subtitleConfig.position * 100).toInt()}%", color = Color.Gray)
@@ -362,12 +352,11 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         text = {
                             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                                 if (availableFonts.isEmpty()) {
-                                    Text("No fonts found. Place .ttf files in device storage.", color = Color.Gray)
+                                    Text("No fonts found.", color = Color.Gray)
                                 } else {
                                     availableFonts.forEach { fontFile ->
                                         Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
+                                            modifier = Modifier.fillMaxWidth()
                                                 .clickable {
                                                     subtitleConfig = subtitleConfig.copy(fontPath = fontFile.absolutePath)
                                                     showFontPicker = false
@@ -384,9 +373,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             }
                         },
                         confirmButton = {
-                            TextButton(onClick = { showFontPicker = false }) {
-                                Text("Cancel", color = Color(0xFFE94560))
-                            }
+                            TextButton(onClick = { showFontPicker = false }) { Text("Cancel", color = Color(0xFFE94560)) }
                         },
                         containerColor = Color(0xFF2A2A2A)
                     )
@@ -406,54 +393,37 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
-                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 5000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
+                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000)) }) { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White) }
+                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 5000)) }) { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White) }
                         IconButton(onClick = { exoPlayer.playWhenReady = !isPlaying },
                             modifier = Modifier.size(64.dp).background(Color(0xFFE94560), CircleShape)) {
-                            Icon(if (isPlaying) Icons.Default.Star else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(36.dp))
+                            Icon(if (isPlaying) Icons.Default.Star else Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
                         }
-                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 5000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
-                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
+                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 5000)) }) { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White) }
+                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }) { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White) }
                     }
 
-                    // Brightness and Volume controls
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.weight(1f)
-                        ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700), modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.height(4.dp))
-                            Slider(
-                                value = brightness,
-                                valueRange = 0.05f..1f,
-                                onValueChange = { brightness = it },
+                            Slider(value = brightness, valueRange = 0.05f..1f, onValueChange = { brightness = it },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                                colors = SliderDefaults.colors(thumbColor = Color(0xFFFFD700), activeTrackColor = Color(0xFFFFD700))
-                            )
-                            Text("Brightness ${(brightness * 100).toInt()}%", color = Color(0xFFFFD700), fontSize = 11.sp)
+                                colors = SliderDefaults.colors(thumbColor = Color(0xFFFFD700), activeTrackColor = Color(0xFFFFD700)))
+                            Text("Bri ${(brightness * 100).toInt()}%", color = Color(0xFFFFD700), fontSize = 11.sp)
                         }
-
                         Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Star, contentDescription = "Volume", tint = Color(0xFF00BFFF), modifier = Modifier.size(20.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFF00BFFF), modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.height(4.dp))
-                            Slider(
-                                value = volume,
-                                valueRange = 0f..1f,
-                                onValueChange = { volume = it; exoPlayer.volume = it },
+                            Slider(value = volume, valueRange = 0f..1f, onValueChange = { volume = it; exoPlayer.volume = it },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                                colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF))
-                            )
-                            Text("Volume ${(volume * 100).toInt()}%", color = Color(0xFF00BFFF), fontSize = 11.sp)
+                                colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF)))
+                            Text("Vol ${(volume * 100).toInt()}%", color = Color(0xFF00BFFF), fontSize = 11.sp)
                         }
                     }
                 }
