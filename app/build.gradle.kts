@@ -55,10 +55,7 @@ dependencies {
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("androidx.media3:media3-common:1.5.1")
 
-    // FFmpeg Extension - پشتیبانی از تمامی کدک‌ها
-    implementation("androidx.media3:media3-decoder-ffmpeg:1.5.1")
-
-    // Decoder extensions برای کدک‌های مدرن
+    // پشتیبانی از تمامی کدک‌ها با MediaCodec (سخت‌افزاری)
     implementation("androidx.media3:media3-exoplayer-dash:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
     implementation("androidx.media3:media3-exoplayer-rtsp:1.5.1")
