@@ -1,6 +1,5 @@
 package com.example.luminaplayer
 
-import android.content.Context
 import android.os.Build
 import android.os.Environment
 import androidx.compose.ui.text.font.Font
@@ -8,63 +7,32 @@ import androidx.compose.ui.text.font.FontFamily
 import java.io.File
 
 object FontScanner {
-
-    fun scanFonts(context: Context): List<File> {
+    fun scanFonts(context: android.content.Context): List<File> {
         val fonts = mutableListOf<File>()
-
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                // Android 13+ - فقط پوشه‌های امن
-                val dirs = listOf(
-                    context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS),
-                    context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                )
-                for (dir in dirs) {
-                    dir?.let { findTtfFiles(it, fonts) }
-                }
+            val dirs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                listOfNotNull(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))
             } else {
-                // Android قدیمی‌تر - پوشه‌های استاندارد
-                val dirs = listOf(
-                    File("/storage/emulated/0/Fonts"),
-                    File("/storage/emulated/0/Download"),
-                    context.getExternalFilesDir(null),
-                )
-                for (dir in dirs) {
-                    dir?.let { findTtfFiles(it, fonts) }
-                }
+                listOfNotNull(File("/storage/emulated/0/Fonts"), File("/storage/emulated/0/Download"), context.getExternalFilesDir(null))
             }
-        } catch (e: Exception) {
-            // اگه ارور داد، لیست خالی برگردان
-        }
-
+            for (dir in dirs) { if (dir.exists() && dir.canRead()) findTtf(dir, fonts) }
+        } catch (_: Exception) {}
         return fonts.distinctBy { it.name }.sortedBy { it.name }.take(30)
     }
 
-    private fun findTtfFiles(dir: File, result: MutableList<File>) {
+    private fun findTtf(dir: File, result: MutableList<File>) {
         try {
-            if (!dir.exists() || !dir.canRead()) return
             val files = dir.listFiles() ?: return
-            for (file in files) {
+            for (f in files) {
                 when {
-                    file.isFile && file.extension.lowercase() == "ttf" -> result.add(file)
-                    file.isDirectory && !file.name.startsWith(".") && result.size < 30 -> {
-                        findTtfFiles(file, result)
-                    }
+                    f.isFile && f.extension.lowercase() == "ttf" -> result.add(f)
+                    f.isDirectory && !f.name.startsWith(".") && result.size < 30 -> findTtf(f, result)
                 }
             }
-        } catch (e: Exception) {
-            // دسترسی رد شده
-        }
+        } catch (_: Exception) {}
     }
 
-    fun loadFont(path: String): FontFamily? {
-        return try {
-            val file = File(path)
-            if (file.exists() && file.canRead()) {
-                FontFamily(Font(file))
-            } else null
-        } catch (e: Exception) {
-            null
-        }
-    }
+    fun loadFont(path: String): FontFamily? = try {
+        val f = File(path); if (f.exists() && f.canRead()) FontFamily(Font(f)) else null
+    } catch (_: Exception) { null }
 }

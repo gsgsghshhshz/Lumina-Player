@@ -11,21 +11,10 @@ import androidx.compose.material3.darkColorScheme
 class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val videoUri: Uri? = when (intent?.action) {
-            Intent.ACTION_VIEW -> intent.data
-            else -> null
-        }
-
+        val videoUri: Uri? = when (intent?.action) { Intent.ACTION_VIEW -> intent.data; else -> null }
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                if (videoUri != null) {
-                    PlayerScreen(
-                        videoUri = videoUri,
-                        subtitleUri = null,
-                        onBack = { finish() }
-                    )
-                }
+                if (videoUri != null) PlayerScreen(videoUri = videoUri, subtitleUri = null, onBack = { finish() })
             }
         }
     }
