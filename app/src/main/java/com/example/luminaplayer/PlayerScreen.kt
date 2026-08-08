@@ -190,7 +190,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
 
         // Subtitle overlay
         if (subtitleEnabled && subtitleEntries.isNotEmpty()) {
-            SubtitleOverlay(subtitleEntries, position, finalFontSize, subtitleConfig, customFontFamily, Modifier.fillMaxSize())
+            SubtitleOverlay(subtitleEntries, position, finalFontSize.sp, subtitleConfig, customFontFamily, Modifier.fillMaxSize())
         }
 
         // Controls overlay
@@ -264,7 +264,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     Text("Size", color = Color.Gray); Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SubtitleSize.entries.forEach { sz -> Button(onClick = { subtitleConfig = subtitleConfig.copy(subtitleSize = sz) }, modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = if (subtitleConfig.subtitleSize == sz) Color(0xFF2196F3) else Color.DarkGray))) { Text(sz.name, fontSize = 10.sp) } }
+                            colors = ButtonDefaults.buttonColors(containerColor = if (subtitleConfig.subtitleSize == sz) Color(0xFF2196F3) else Color.DarkGray)) { Text(sz.name, fontSize = 10.sp) } }
                     }
                     Text("Scale: ${subtitleConfig.fontScale.toInt()}%", color = Color.Gray)
                     Slider(value = subtitleConfig.fontScale, valueRange = 50f..200f, onValueChange = { subtitleConfig = subtitleConfig.copy(fontScale = it) }, colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
