@@ -8,19 +8,21 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 
 class MainActivity : ComponentActivity() {
     private var videoUri by mutableStateOf<Uri?>(null)
@@ -38,12 +40,108 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                VideoPlayerScreen(
-                    videoUri = videoUri,
-                    onPickVideo = {
-                        launcher.launch(arrayOf("video/*"))
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                if (videoUri != null) {
+                    VideoPlayerScreen(
+                        videoUri = videoUri!!,
+                        onBack = { videoUri = null }
+                    )
+                } else {
+                    HomeScreen(
+                        onPickVideo = { launcher.launch(arrayOf("video/*")) },
+                        onOpenSettings = {
+                            startActivity(Intent(this, SettingsActivity::class.java))
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(onPickVideo: () -> Unit, onOpenSettings: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("🎬 Lumina Player") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF1A1A2E)
+                ),
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFFE94560))
                     }
+                }
+            )
+        },
+        containerColor = Color(0xFF0F0F23)
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                Icons.Default.PlayCircleFilled,
+                contentDescription = null,
+                modifier = Modifier.size(120.dp),
+                tint = Color(0xFFE94560)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                "Lumina Player Pro",
+                color = Color.White,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "ویدیو پلیر حرفه‌ای فارسی",
+                color = Color.Gray,
+                fontSize = 16.sp
+            )
+            Spacer(modifier = Modifier.height(48.dp))
+
+            Button(
+                onClick = onPickVideo,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFE94560)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(24.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("انتخاب ویدیو", fontSize = 18.sp)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                FeatureCard(
+                    icon = Icons.Default.Subtitles,
+                    title = "زیرنویس فارسی",
+                    modifier = Modifier.weight(1f)
+                )
+                FeatureCard(
+                    icon = Icons.Default.HighQuality,
+                    title = "کیفیت بالا",
+                    modifier = Modifier.weight(1f)
+                )
+                FeatureCard(
+                    icon = Icons.Default.Speed,
+                    title = "سرعت پخش",
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -51,65 +149,19 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun VideoPlayerScreen(videoUri: Uri?, onPickVideo: () -> Unit) {
-    val context = LocalContext.current
-    var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
-
-    DisposableEffect(videoUri) {
-        if (videoUri != null) {
-            val player = ExoPlayer.Builder(context).build()
-            player.setMediaItem(MediaItem.fromUri(videoUri))
-            player.prepare()
-            player.playWhenReady = true
-            exoPlayer = player
-            onDispose { player.release() }
-        }
-        onDispose { exoPlayer?.release() }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
+fun FeatureCard(icon: ImageVector, title: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E)),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        if (videoUri != null && exoPlayer != null) {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exoPlayer
-                        useController = true
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "🎬 Lumina Player",
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "ویدیو پلیر حرفه‌ای",
-                    color = Color.Gray,
-                    fontSize = 16.sp
-                )
-                Spacer(modifier = Modifier.height(32.dp))
-                Button(
-                    onClick = onPickVideo,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1976D2)
-                    )
-                ) {
-                    Text("انتخاب ویدیو", fontSize = 16.sp)
-                }
-            }
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, null, tint = Color(0xFFE94560), modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(title, color = Color.White, fontSize = 12.sp)
         }
     }
 }
