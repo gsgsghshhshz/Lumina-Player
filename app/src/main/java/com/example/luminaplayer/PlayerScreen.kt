@@ -278,9 +278,9 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth()
                                         .clickable {
-                                            val override = TrackSelectionOverride(track.groupIndex, listOf(track.trackIndex))
                                             val paramsBuilder = exoPlayer.trackSelectionParameters.buildUpon()
                                             paramsBuilder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                            paramsBuilder.setPreferredTextLanguage(track.language)
                                             exoPlayer.trackSelectionParameters = paramsBuilder.build()
                                             selectedTrackLabel = track.label
                                             subtitleEnabled = true
