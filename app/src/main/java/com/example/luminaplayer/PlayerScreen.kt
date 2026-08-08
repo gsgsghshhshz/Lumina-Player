@@ -32,6 +32,9 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
@@ -43,13 +46,18 @@ data class SubtitleConfig(
     val fontColor: Color = Color.White,
     val isBold: Boolean = false,
     val isItalic: Boolean = false,
-    val backgroundEnabled: Boolean = false,
     val borderEnabled: Boolean = true,
     val borderWidth: Float = 200f,
     val shadowEnabled: Boolean = false,
     val shadowFadeOut: Boolean = true,
-    val position: Float = 0.9f,
-    val encoding: String = "UTF-8"
+    val position: Float = 0.9f
+)
+
+data class SubtitleTrackInfo(
+    val groupIndex: Int,
+    val trackIndex: Int,
+    val language: String,
+    val label: String
 )
 
 @Composable
@@ -74,28 +82,23 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
     var customFontFamily by remember { mutableStateOf<FontFamily?>(null) }
     var showFontPicker by remember { mutableStateOf(false) }
     var availableFonts by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
+    var embeddedTracks by remember { mutableStateOf<List<SubtitleTrackInfo>>(emptyList()) }
+    var showTrackSelector by remember { mutableStateOf(false) }
+    var selectedTrackLabel by remember { mutableStateOf("Off") }
+    var subtitleEnabled by remember { mutableStateOf(true) }
 
-    // اسکن فونت‌ها با try-catch برای جلوگیری از کرش
     LaunchedEffect(Unit) {
-        try {
-            availableFonts = FontScanner.scanFonts(context)
-        } catch (e: Exception) {
-            availableFonts = emptyList()
-        }
+        try { availableFonts = FontScanner.scanFonts(context) } catch (e: Exception) { availableFonts = emptyList() }
     }
 
-    // پارس زیرنویس
     LaunchedEffect(subtitleUri) {
         try {
             if (subtitleUri != null) {
                 subtitleEntries = SubtitleParser.detectAndParse(context, subtitleUri)
             }
-        } catch (e: Exception) {
-            subtitleEntries = emptyList()
-        }
+        } catch (e: Exception) { subtitleEntries = emptyList() }
     }
 
-    // اعمال روشنایی
     LaunchedEffect(brightness) {
         try {
             activity?.window?.attributes = activity.window.attributes.apply {
@@ -104,15 +107,10 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
         } catch (e: Exception) {}
     }
 
-    // آپدیت فونت
     LaunchedEffect(subtitleConfig.fontPath) {
         try {
-            customFontFamily = if (subtitleConfig.fontPath.isNotEmpty()) {
-                FontScanner.loadFont(subtitleConfig.fontPath)
-            } else null
-        } catch (e: Exception) {
-            customFontFamily = null
-        }
+            customFontFamily = if (subtitleConfig.fontPath.isNotEmpty()) FontScanner.loadFont(subtitleConfig.fontPath) else null
+        } catch (e: Exception) { customFontFamily = null }
     }
 
     val exoPlayer = remember {
@@ -128,12 +126,28 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         Player.STATE_READY -> {
                             isPrepared = true
                             duration = this@apply.duration.coerceAtLeast(1)
+                            // پیدا کردن ترک‌های زیرنویس
+                            val tracks = this@apply.currentTracks
+                            val subs = mutableListOf<SubtitleTrackInfo>()
+                            for (groupIndex in 0 until tracks.groups.size) {
+                                val group = tracks.groups[groupIndex]
+                                if (group.type == C.TRACK_TYPE_TEXT) {
+                                    for (trackIndex in 0 until group.length) {
+                                        val format = group.getTrackFormat(trackIndex)
+                                        subs.add(SubtitleTrackInfo(
+                                            groupIndex = groupIndex,
+                                            trackIndex = trackIndex,
+                                            language = format.language ?: "und",
+                                            label = format.label ?: format.language ?: "Track ${trackIndex + 1}"
+                                        ))
+                                    }
+                                }
+                            }
+                            embeddedTracks = subs
                         }
                     }
                 }
-                override fun onIsPlayingChanged(playing: Boolean) {
-                    isPlaying = playing
-                }
+                override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
             })
         }
     }
@@ -182,30 +196,24 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         change.consume()
                         val x = change.position.x
                         when {
-                            x < size.width / 3f -> {
-                                brightness = (brightness - dragAmount.y / size.height).coerceIn(0.05f, 1f)
-                            }
-                            x > size.width * 2f / 3f -> {
-                                volume = (volume - dragAmount.y / size.height).coerceIn(0f, 1f)
-                                exoPlayer.volume = volume
-                            }
-                            else -> {
-                                val seekDelta = (dragAmount.x * 50).toLong()
-                                exoPlayer.seekTo((exoPlayer.currentPosition + seekDelta).coerceIn(0, exoPlayer.duration))
-                            }
+                            x < size.width / 3f -> { brightness = (brightness - dragAmount.y / size.height).coerceIn(0.05f, 1f) }
+                            x > size.width * 2f / 3f -> { volume = (volume - dragAmount.y / size.height).coerceIn(0f, 1f); exoPlayer.volume = volume }
+                            else -> { exoPlayer.seekTo((exoPlayer.currentPosition + (dragAmount.x * 50).toLong()).coerceIn(0, exoPlayer.duration)) }
                         }
                     }
                 }
         )
 
         // رندر کاستوم زیرنویس
-        SubtitleOverlay(
-            entries = subtitleEntries,
-            currentPositionMs = position,
-            config = subtitleConfig,
-            customFontFamily = customFontFamily,
-            modifier = Modifier.fillMaxSize()
-        )
+        if (subtitleEnabled) {
+            SubtitleOverlay(
+                entries = subtitleEntries,
+                currentPositionMs = position,
+                config = subtitleConfig,
+                customFontFamily = customFontFamily,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         if (showControls) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -216,11 +224,14 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                 ) {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White) }
                     Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { showSubtitleSettings = !showSubtitleSettings }) {
+                    IconButton(onClick = { showTrackSelector = true }) {
                         Icon(Icons.Default.List, contentDescription = "Subtitles", tint = Color(0xFFDAA520))
                     }
                     IconButton(onClick = { showSpeedMenu = !showSpeedMenu }) {
                         Icon(Icons.Default.Favorite, contentDescription = "Speed", tint = Color.White)
+                    }
+                    IconButton(onClick = { showSubtitleSettings = !showSubtitleSettings }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
                     }
                     IconButton(onClick = { isLocked = !isLocked }) {
                         Icon(Icons.Default.Lock, contentDescription = "Lock", tint = Color.White)
@@ -231,6 +242,84 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
+
+                // Track Selector
+                if (showTrackSelector) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Subtitle Track", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Track built-in
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable {
+                                        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                                            .buildUpon()
+                                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                            .build()
+                                        selectedTrackLabel = "Off"
+                                        subtitleEnabled = false
+                                    }
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Off", color = if (selectedTrackLabel == "Off") Color(0xFFE94560) else Color.White)
+                            }
+
+                            // Embedded tracks
+                            embeddedTracks.forEach { track ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .clickable {
+                                            val override = TrackSelectionOverride(track.groupIndex, listOf(track.trackIndex))
+                                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                                                .buildUpon()
+                                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                                .setOverrideForType(override)
+                                                .build()
+                                            selectedTrackLabel = track.label
+                                            subtitleEnabled = true
+                                        }
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.List, null, tint = Color(0xFFDAA520), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("${track.label} (${track.language})", color = if (selectedTrackLabel == track.label) Color(0xFFE94560) else Color.White)
+                                }
+                            }
+
+                            // External subtitle
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable {
+                                        subtitleEnabled = true
+                                        selectedTrackLabel = "External"
+                                    }
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Favorite, null, tint = Color(0xFF00BFFF), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("External (from file)", color = if (selectedTrackLabel == "External") Color(0xFFE94560) else Color.White)
+                            }
+
+                            if (embeddedTracks.isEmpty()) {
+                                Text("No embedded subtitles found in video", color = Color.Gray, fontSize = 12.sp)
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextButton(onClick = { showTrackSelector = false }) { Text("Done", color = Color(0xFF2196F3)) }
+                        }
+                    }
+                }
 
                 // Speed menu
                 if (showSpeedMenu) {
@@ -249,7 +338,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     }
                 }
 
-                // Subtitle Settings Panel
+                // Subtitle Settings
                 if (showSubtitleSettings) {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -258,82 +347,55 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
                             Text("Subtitle Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Font Picker
-                            Text("Font", color = Color.Gray)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    onClick = { showFontPicker = true },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
-                                ) { Text("Choose Font", fontSize = 12.sp) }
-                                Button(
-                                    onClick = { subtitleConfig = subtitleConfig.copy(fontPath = ""); customFontFamily = null },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-                                ) { Text("Default", fontSize = 12.sp) }
-                            }
-                            if (subtitleConfig.fontPath.isNotEmpty()) {
-                                Text("Active: ${subtitleConfig.fontPath.split("/").last()}", color = Color(0xFFDAA520), fontSize = 10.sp)
-                            }
-
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Subtitle Size - Low/Medium/High
+                            Text("Font", color = Color.Gray)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { showFontPicker = true }, modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))) { Text("Choose Font", fontSize = 11.sp) }
+                                Button(onClick = { subtitleConfig = subtitleConfig.copy(fontPath = ""); customFontFamily = null },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray))) { Text("Default", fontSize = 11.sp) }
+                            }
+
                             Text("Size", color = Color.Gray)
-                            Spacer(modifier = Modifier.height(4.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 SubtitleSize.entries.forEach { size ->
-                                    Button(
-                                        onClick = { subtitleConfig = subtitleConfig.copy(subtitleSize = size) },
+                                    Button(onClick = { subtitleConfig = subtitleConfig.copy(subtitleSize = size) },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (subtitleConfig.subtitleSize == size) Color(0xFF2196F3) else Color.DarkGray
-                                        )
-                                    ) { Text(size.name, fontSize = 11.sp) }
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (subtitleConfig.subtitleSize == size) Color(0xFF2196F3) else Color.DarkGray))
+                                    { Text(size.name, fontSize = 10.sp) }
                                 }
                             }
 
-                            // Scale
                             Text("Scale: ${subtitleConfig.fontScale.toInt()}%", color = Color.Gray)
                             Slider(value = subtitleConfig.fontScale, valueRange = 50f..200f,
                                 onValueChange = { subtitleConfig = subtitleConfig.copy(fontScale = it) },
                                 colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
 
-                            // Color
                             Text("Color", color = Color.Gray)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                                listOf(Color.White to "W", Color(0xFFDAA520) to "G", Color.Yellow to "Y", Color.Cyan to "C", Color(0xFF00FF00) to "R").forEach { (color, _) ->
-                                    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color)
+                                listOf(Color.White, Color(0xFFDAA520), Color.Yellow, Color.Cyan, Color(0xFF00FF00)).forEach { color ->
+                                    Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(color)
                                         .clickable { subtitleConfig = subtitleConfig.copy(fontColor = color) })
                                 }
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.isBold, onCheckedChange = { subtitleConfig = subtitleConfig.copy(isBold = it) })
-                                Text("Bold", color = Color.White)
+                                Text("Bold", color = Color.White, fontSize = 13.sp)
                             }
-
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.isItalic, onCheckedChange = { subtitleConfig = subtitleConfig.copy(isItalic = it) })
-                                Text("Italic", color = Color.White)
+                                Text("Italic", color = Color.White, fontSize = 13.sp)
                             }
-
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.borderEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(borderEnabled = it) })
-                                Text("Border", color = Color.White)
+                                Text("Border", color = Color.White, fontSize = 13.sp)
                             }
-                            if (subtitleConfig.borderEnabled) {
-                                Slider(value = subtitleConfig.borderWidth, valueRange = 100f..500f,
-                                    onValueChange = { subtitleConfig = subtitleConfig.copy(borderWidth = it) },
-                                    colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
-                            }
-
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = subtitleConfig.shadowEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(shadowEnabled = it) })
-                                Text("Shadow", color = Color.White)
+                                Text("Shadow", color = Color.White, fontSize = 13.sp)
                             }
 
                             Text("Position: ${(subtitleConfig.position * 100).toInt()}%", color = Color.Gray)
@@ -344,7 +406,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     }
                 }
 
-                // Font Picker Dialog
+                // Font Picker
                 if (showFontPicker) {
                     AlertDialog(
                         onDismissRequest = { showFontPicker = false },
@@ -357,10 +419,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                     availableFonts.forEach { fontFile ->
                                         Row(
                                             modifier = Modifier.fillMaxWidth()
-                                                .clickable {
-                                                    subtitleConfig = subtitleConfig.copy(fontPath = fontFile.absolutePath)
-                                                    showFontPicker = false
-                                                }
+                                                .clickable { subtitleConfig = subtitleConfig.copy(fontPath = fontFile.absolutePath); showFontPicker = false }
                                                 .padding(8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -372,17 +431,13 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                 }
                             }
                         },
-                        confirmButton = {
-                            TextButton(onClick = { showFontPicker = false }) { Text("Cancel", color = Color(0xFFE94560)) }
-                        },
+                        confirmButton = { TextButton(onClick = { showFontPicker = false }) { Text("Cancel", color = Color(0xFFE94560)) } },
                         containerColor = Color(0xFF2A2A2A)
                     )
                 }
 
                 // Bottom controls
-                Column(
-                    modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(16.dp)
-                ) {
+                Column(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(formatTime(position), color = Color.Gray, fontSize = 12.sp)
                         Slider(value = position.toFloat(), valueRange = 0f..duration.toFloat(),
@@ -393,24 +448,19 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000)) }) { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White) }
-                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 5000)) }) { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White) }
+                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
+                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 5000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
                         IconButton(onClick = { exoPlayer.playWhenReady = !isPlaying },
                             modifier = Modifier.size(64.dp).background(Color(0xFFE94560), CircleShape)) {
-                            Icon(if (isPlaying) Icons.Default.Star else Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
+                            Icon(if (isPlaying) Icons.Default.Star else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(36.dp))
                         }
-                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 5000)) }) { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White) }
-                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }) { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White) }
+                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 5000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
+                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }) { Icon(Icons.Default.Refresh, null, tint = Color.White) }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700), modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.height(4.dp))
                             Slider(value = brightness, valueRange = 0.05f..1f, onValueChange = { brightness = it },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                                 colors = SliderDefaults.colors(thumbColor = Color(0xFFFFD700), activeTrackColor = Color(0xFFFFD700)))
@@ -419,7 +469,6 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFF00BFFF), modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.height(4.dp))
                             Slider(value = volume, valueRange = 0f..1f, onValueChange = { volume = it; exoPlayer.volume = it },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                                 colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF)))
