@@ -51,7 +51,8 @@ object FontScanner {
         return try {
             val file = File(path)
             if (file.exists()) {
-                Font(file)
+                val font = Font(file)
+                FontFamily(font)
             } else null
         } catch (e: Exception) {
             null
