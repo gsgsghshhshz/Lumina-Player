@@ -148,7 +148,7 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     }
                     IconButton(onClick = { isLocked = !isLocked }) {
                         Icon(
-                            if (isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                            Icons.Default.Lock,
                             "Lock",
                             tint = Color.White
                         )
@@ -273,7 +273,7 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             Icon(Icons.Default.Refresh, null, tint = Color.White)
                         }
                         IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 5000)) }) {
-                            Icon(Icons.Default.Replay, null, tint = Color.White)
+                            Icon(Icons.Default.Refresh, null, tint = Color.White)
                         }
                         IconButton(
                             onClick = { exoPlayer.playWhenReady = !isPlaying },
@@ -282,7 +282,7 @@ fun VideoPlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                                 .background(Color(0xFFE94560), CircleShape)
                         ) {
                             Icon(
-                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                if (isPlaying) Icons.Default.Star else Icons.Default.PlayArrow,
                                 null,
                                 tint = Color.White,
                                 modifier = Modifier.size(36.dp)
