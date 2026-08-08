@@ -24,6 +24,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
@@ -44,28 +45,55 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var subtitleEnabled by remember { mutableStateOf(true) }
     var subtitleSize by remember { mutableFloatStateOf(24f) }
     var subtitleColor by remember { mutableStateOf(Color(0xFFDAA520)) }
+    var isPrepared by remember { mutableStateOf(false) }
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(videoUri))
+            prepare()
             playWhenReady = true
             videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+            addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    when (playbackState) {
+                        Player.STATE_READY -> {
+                            isPrepared = true
+                            duration = this@apply.duration.coerceAtLeast(1)
+                        }
+                        Player.STATE_ENDED -> {
+                            // Video ended
+                        }
+                        Player.STATE_BUFFERING -> {
+                            // Buffering
+                        }
+                        Player.STATE_IDLE -> {
+                            // Idle
+                        }
+                    }
+                }
+                override fun onIsPlayingChanged(playing: Boolean) {
+                    isPlaying = playing
+                }
+            })
         }
     }
 
     LaunchedEffect(Unit) {
         while (true) {
-            exoPlayer.let { p ->
-                position = p.currentPosition
-                duration = p.duration.coerceAtLeast(1)
-                isPlaying = p.isPlaying
+            if (isPrepared) {
+                position = exoPlayer.currentPosition
+                duration = exoPlayer.duration.coerceAtLeast(1)
+                isPlaying = exoPlayer.isPlaying
             }
             delay(200)
         }
     }
 
     DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
+        onDispose {
+            exoPlayer.removeListener(object : Player.Listener {})
+            exoPlayer.release()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
