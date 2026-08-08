@@ -1,8 +1,10 @@
 package com.example.luminaplayer
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.view.WindowManager
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -69,6 +71,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
     var showSubtitleSettings by remember { mutableStateOf(false) }
     var subtitleConfig by remember { mutableStateOf(SubtitleConfig()) }
     var isPrepared by remember { mutableStateOf(false) }
+    var videoRotation by remember { mutableFloatStateOf(0f) }
 
     // اعمال روشنایی به صفحه
     LaunchedEffect(brightness) {
@@ -140,6 +143,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
             },
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer { rotationZ = videoRotation }
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { showControls = !showControls },
@@ -190,6 +194,9 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                     }
                     IconButton(onClick = { isLocked = !isLocked }) {
                         Icon(Icons.Default.Lock, "Lock", tint = Color.White)
+                    }
+                    IconButton(onClick = { videoRotation = (videoRotation + 90f) % 360f }) {
+                        Icon(Icons.Default.Refresh, "Rotate", tint = Color(0xFF00BFFF))
                     }
                 }
 
