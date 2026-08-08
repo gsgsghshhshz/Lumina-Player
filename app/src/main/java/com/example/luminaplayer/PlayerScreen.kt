@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,6 +30,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
+    val context = LocalContext.current
     var isPlaying by remember { mutableStateOf(true) }
     var showControls by remember { mutableStateOf(true) }
     var position by remember { mutableLongStateOf(0L) }
@@ -44,7 +46,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var subtitleColor by remember { mutableStateOf(Color(0xFFDAA520)) }
 
     val exoPlayer = remember {
-        ExoPlayer.Builder(androidx.compose.ui.platform.LocalContext.current).build().apply {
+        ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(videoUri))
             playWhenReady = true
             videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
