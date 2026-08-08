@@ -338,7 +338,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.VolumeUp, null, tint = Color(0xFF00BFFF), modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Star, contentDescription = "Volume", tint = Color(0xFF00BFFF), modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.height(4.dp))
                             Slider(
                                 value = volume,
