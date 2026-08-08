@@ -8,7 +8,7 @@
         android:allowBackup="true"
         android:label="Lumina Player"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.NoTitleBar.Fullscreen">
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"
             android:exported="true"
