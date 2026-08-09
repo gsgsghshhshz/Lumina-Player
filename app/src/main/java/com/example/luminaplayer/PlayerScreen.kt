@@ -42,13 +42,7 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 
 enum class SubtitleSize(val scale: Float) { LOW(0.6f), MEDIUM(1.0f), HIGH(1.5f) }
-data class SubtitleConfig(
-    val fontPath: String = "", val subtitleSize: SubtitleSize = SubtitleSize.MEDIUM,
-    val fontScale: Float = 100f, val fontColor: Color = Color.White,
-    val isBold: Boolean = false, val isItalic: Boolean = false,
-    val borderEnabled: Boolean = true, val borderWidth: Float = 200f,
-    val shadowEnabled: Boolean = false, val position: Float = 0.9f
-)
+data class SubtitleConfig(val fontPath: String = "", val subtitleSize: SubtitleSize = SubtitleSize.MEDIUM, val fontScale: Float = 100f, val fontColor: Color = Color.White, val isBold: Boolean = false, val isItalic: Boolean = false, val borderEnabled: Boolean = true, val borderWidth: Float = 200f, val shadowEnabled: Boolean = false, val position: Float = 0.9f)
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -78,11 +72,22 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
     var showFontPicker by remember { mutableStateOf(false) }
     var availableFonts by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
     var embeddedTracks by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var embeddedAudioTracks by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var selectedTrackLabel by remember { mutableStateOf("Off") }
+    var selectedAudioLabel by remember { mutableStateOf("Default") }
     var subtitleEnabled by remember { mutableStateOf(true) }
     var videoTitle by remember { mutableStateOf("Lumina Player") }
+    var showAudioDialog by remember { mutableStateOf(false) }
+    var showSubtitlePanel by remember { mutableStateOf(false) }
+    var subtitleSync by remember { mutableFloatStateOf(0f) }
+    var subtitleSpeed by remember { mutableFloatStateOf(100f) }
+    var showShortcutPanel by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(false) }
+    var videoInfo by remember { mutableStateOf("") }
+    var volumeBoost by remember { mutableIntStateOf(100) }
+    var aspectRatio by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(videoUri) { videoTitle = videoUri.lastPathSegment ?: "Lumina Player" }
+    LaunchedEffect(videoUri) { videoTitle = videoUri.lastPathSegment?.replace("+", " ") ?: "Lumina Player" }
     LaunchedEffect(Unit) { try { availableFonts = FontScanner.scanFonts(context) } catch (_: Exception) {} }
     LaunchedEffect(subtitleUri) { try { if (subtitleUri != null) subtitleEntries = SubtitleParser.detectAndParse(context, subtitleUri) } catch (_: Exception) {} }
     LaunchedEffect(brightness) { try { activity?.window?.attributes = activity.window.attributes.apply { screenBrightness = brightness } } catch (_: Exception) {} }
@@ -98,6 +103,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                         isPrepared = true; duration = this@apply.duration.coerceAtLeast(1)
                         val tracks = this@apply.currentTracks
                         val subs = mutableListOf<Pair<String, String>>()
+                        val audios = mutableListOf<Pair<String, String>>()
                         for (i in 0 until tracks.groups.size) {
                             val g = tracks.groups[i]
                             if (g.type == C.TRACK_TYPE_TEXT) {
@@ -106,8 +112,15 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                                     subs.add((fmt.label ?: fmt.language ?: "Track") to (fmt.language ?: "und"))
                                 }
                             }
+                            if (g.type == C.TRACK_TYPE_AUDIO) {
+                                for (j in 0 until g.length) {
+                                    val fmt = g.getTrackFormat(j)
+                                    audios.add((fmt.label ?: fmt.language ?: "Audio") to (fmt.language ?: "und"))
+                                }
+                            }
                         }
-                        embeddedTracks = subs
+                        embeddedTracks = subs; embeddedAudioTracks = audios
+                        try { videoInfo = "Resolution: ${this@apply.videoFormat?.width}x${this@apply.videoFormat?.height}\nCodec: ${this@apply.videoFormat?.codecName ?: "N/A"}\nAudio: ${this@apply.audioFormat?.codecName ?: "N/A"}\nDuration: ${formatTime(duration)}\nFile: $videoTitle" } catch (_: Exception) {}
                     }
                 }
                 override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
@@ -115,12 +128,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            if (isPrepared) { position = exoPlayer.currentPosition; duration = exoPlayer.duration.coerceAtLeast(1); isPlaying = exoPlayer.isPlaying }
-            delay(200)
-        }
-    }
+    LaunchedEffect(Unit) { while (true) { if (isPrepared) { position = exoPlayer.currentPosition; duration = exoPlayer.duration.coerceAtLeast(1); isPlaying = exoPlayer.isPlaying }; delay(200) } }
     DisposableEffect(Unit) { onDispose { exoPlayer.release(); try { activity?.window?.attributes = activity.window.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE } } catch (_: Exception) {} } }
 
     val baseFontSize = with(density) { val h = context.resources.displayMetrics.heightPixels; when { h > 2400 -> 20f; h > 1800 -> 16f; h > 1200 -> 14f; else -> 12f } }
@@ -155,42 +163,57 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
         // Controls
         if (!isLocked && showControls) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top bar
-                Row(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White) }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(videoTitle, color = Color.White, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { showTrackDialog = true }) { Icon(Icons.Default.List, contentDescription = "Tracks", tint = Color(0xFFDAA520)) }
-                    IconButton(onClick = { showSpeedMenu = !showSpeedMenu }) { Icon(Icons.Default.Favorite, contentDescription = "Speed", tint = Color.White) }
-                    IconButton(onClick = { showSettings = !showSettings }) { Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White) }
-                    IconButton(onClick = { videoRotation = (videoRotation + 90f) % 360f }) { Icon(Icons.Default.Refresh, contentDescription = "Rotate", tint = Color(0xFF00BFFF)) }
-                    IconButton(onClick = { isLocked = true }) { Icon(Icons.Default.Lock, contentDescription = "Lock", tint = Color.White) }
+                // Top bar (MX Player style)
+                Row(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp)) }
+                    Text(videoTitle, color = Color.White, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f).padding(horizontal = 4.dp))
+                    IconButton(onClick = { showSubtitlePanel = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.List, contentDescription = "Subtitles", tint = Color(0xFFDAA520), modifier = Modifier.size(18.dp)) }
+                    IconButton(onClick = { showAudioDialog = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Favorite, contentDescription = "Audio", tint = Color(0xFF00BFFF), modifier = Modifier.size(18.dp)) }
+                    IconButton(onClick = { showSpeedMenu = !showSpeedMenu }, modifier = Modifier.size(36.dp)) { Text("HW+", color = Color.White, fontSize = 10.sp, modifier = Modifier.background(Color.DarkGray, RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) }
+                    IconButton(onClick = { showSettings = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(18.dp)) }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Bottom bar
-                Column(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
-                        Text(formatTime(position), color = Color.Gray, fontSize = 12.sp)
-                        Slider(value = position.toFloat(), valueRange = 0f..duration.toFloat(), onValueChange = { exoPlayer.seekTo(it.toLong()) }, modifier = Modifier.weight(1f).padding(horizontal = 8.dp), colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White))
-                        Text(formatTime(duration), color = Color.Gray, fontSize = 12.sp)
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000)) }) { Icon(Icons.Default.Refresh, contentDescription = "-10s", tint = Color.White) }
-                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 5000)) }) { Icon(Icons.Default.Refresh, contentDescription = "-5s", tint = Color.White) }
-                        IconButton(onClick = { exoPlayer.playWhenReady = !isPlaying }, modifier = Modifier.size(56.dp).background(Color.White.copy(alpha = 0.1f), CircleShape)) {
-                            Icon(if (isPlaying) Icons.Default.Star else Icons.Default.PlayArrow, contentDescription = "Play/Pause", tint = Color.White, modifier = Modifier.size(32.dp))
+                // Quick settings bar (MX Player style)
+                if (showControls && !isLocked) {
+                    Row(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.5f)).padding(4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        listOf("EQ" to "Equalizer", "1x" to "Speed", "📷" to "Screenshot", "🔊" to "Audio", "↻" to "Rotate", ">" to "More").forEach { (icon, label) ->
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
+                                when (label) { "Speed" -> showSpeedMenu = !showSpeedMenu; "Rotate" -> videoRotation = (videoRotation + 90f) % 360f; "Audio" -> showAudioDialog = true; "More" -> showShortcutPanel = true }
+                            }) {
+                                Text(icon, fontSize = 14.sp, color = Color.White)
+                                Text(label, fontSize = 8.sp, color = Color.Gray)
+                            }
                         }
-                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 5000)) }) { Icon(Icons.Default.Refresh, contentDescription = "+5s", tint = Color.White) }
-                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }) { Icon(Icons.Default.Refresh, contentDescription = "+10s", tint = Color.White) }
                     }
-                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, contentDescription = "Brightness", tint = Color(0xFFFFD700), modifier = Modifier.size(16.dp))
-                        Slider(value = brightness, valueRange = 0.05f..1f, onValueChange = { brightness = it }, modifier = Modifier.weight(1f).padding(horizontal = 4.dp), colors = SliderDefaults.colors(thumbColor = Color(0xFFFFD700), activeTrackColor = Color(0xFFFFD700)))
+                }
+
+                // Bottom bar (MX Player style)
+                Column(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 4.dp, vertical = 2.dp)) {
+                    // Seek bar
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text(formatTime(position), color = Color.Gray, fontSize = 11.sp)
+                        Slider(value = position.toFloat(), valueRange = 0f..duration.toFloat(), onValueChange = { exoPlayer.seekTo(it.toLong()) }, modifier = Modifier.weight(1f).padding(horizontal = 4.dp), colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF), inactiveTrackColor = Color.DarkGray))
+                        Text(formatTime(duration), color = Color.Gray, fontSize = 11.sp)
+                    }
+                    // Controls row
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { isLocked = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Lock, contentDescription = "Lock", tint = Color.White, modifier = Modifier.size(18.dp)) }
+                        IconButton(onClick = { exoPlayer.seekTo(maxOf(0, exoPlayer.currentPosition - 10000)) }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Refresh, contentDescription = "-10s", tint = Color.White, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { exoPlayer.playWhenReady = !isPlaying }, modifier = Modifier.size(56.dp).background(Color.White.copy(alpha = 0.1f), CircleShape)) {
+                            Icon(if (isPlaying) Icons.Default.Star else Icons.Default.PlayArrow, contentDescription = "Play/Pause", tint = Color.White, modifier = Modifier.size(30.dp))
+                        }
+                        IconButton(onClick = { exoPlayer.seekTo(minOf(exoPlayer.duration, exoPlayer.currentPosition + 10000)) }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Refresh, contentDescription = "+10s", tint = Color.White, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { aspectRatio = (aspectRatio + 1) % 3 }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Refresh, contentDescription = "Aspect", tint = Color.White, modifier = Modifier.size(18.dp)) }
+                    }
+                    // Brightness + Volume
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, contentDescription = "Brightness", tint = Color(0xFFFFD700), modifier = Modifier.size(14.dp))
+                        Slider(value = brightness, valueRange = 0.05f..1f, onValueChange = { brightness = it }, modifier = Modifier.weight(1f).padding(horizontal = 4.dp), colors = SliderDefaults.colors(thumbColor = Color(0xFFFFD700), activeTrackColor = Color(0xFFFFD700), inactiveTrackColor = Color.DarkGray))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.Default.Star, contentDescription = "Volume", tint = Color(0xFF00BFFF), modifier = Modifier.size(16.dp))
-                        Slider(value = volume, valueRange = 0f..1f, onValueChange = { volume = it; exoPlayer.volume = it }, modifier = Modifier.weight(1f).padding(horizontal = 4.dp), colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF)))
+                        Icon(Icons.Default.Star, contentDescription = "Volume", tint = Color(0xFF00BFFF), modifier = Modifier.size(14.dp))
+                        Slider(value = volume, valueRange = 0f..1f, onValueChange = { volume = it; exoPlayer.volume = it }, modifier = Modifier.weight(1f).padding(horizontal = 4.dp), colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF), inactiveTrackColor = Color.DarkGray))
                     }
                 }
             }
@@ -198,52 +221,109 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
 
         // Speed menu
         if (showSpeedMenu && showControls && !isLocked) {
-            Row(modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.9f), RoundedCornerShape(12.dp)).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { s ->
                     Button(onClick = { playbackSpeed = s; exoPlayer.playbackParameters = PlaybackParameters(s); showSpeedMenu = false }, colors = ButtonDefaults.buttonColors(containerColor = if (playbackSpeed == s) Color(0xFFE94560) else Color.DarkGray), modifier = Modifier.height(32.dp)) { Text("${s}x", fontSize = 11.sp) }
                 }
             }
         }
 
-        // Settings dialog
-        if (showSettings) {
-            AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Subtitle Settings", color = Color.White) },
+        // Subtitle Panel (MX Player style)
+        if (showSubtitlePanel) {
+            AlertDialog(onDismissRequest = { showSubtitlePanel = false }, title = { Row { Text("Subtitle", color = Color.White, fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.weight(1f)); Text("Online subtitles", color = Color(0xFF2196F3), fontSize = 12.sp, modifier = Modifier.clickable { showSubtitlePanel = false }) } },
                 text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text("Size", color = Color.Gray); Spacer(modifier = Modifier.height(4.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SubtitleSize.entries.forEach { sz -> Button(onClick = { subtitleConfig = subtitleConfig.copy(subtitleSize = sz) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (subtitleConfig.subtitleSize == sz) Color(0xFF2196F3) else Color.DarkGray)) { Text(sz.name, fontSize = 10.sp) } }
+                    Row(modifier = Modifier.fillMaxWidth().clickable { showSubtitlePanel = false }.padding(vertical = 8.dp)) { Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Open", color = Color.White) }
+                    if (subtitleEntries.isNotEmpty()) { Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) { Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFF2196F3), modifier = Modifier.size(20.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Loaded subtitle", color = Color.White) } }
+                    HorizontalDivider(color = Color.DarkGray)
+                    Text("Synchronization", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { subtitleSync = (subtitleSync - 0.5f).coerceAtLeast(-10f) }, modifier = Modifier.size(32.dp)) { Text("-", color = Color.White, fontSize = 16.sp) }
+                        Text("${String.format("%.1f", subtitleSync)}s", color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                        IconButton(onClick = { subtitleSync = (subtitleSync + 0.5f).coerceAtMost(10f) }, modifier = Modifier.size(32.dp)) { Text("+", color = Color.White, fontSize = 16.sp) }
                     }
-                    Text("Scale: ${subtitleConfig.fontScale.toInt()}%", color = Color.Gray)
-                    Slider(value = subtitleConfig.fontScale, valueRange = 50f..200f, onValueChange = { subtitleConfig = subtitleConfig.copy(fontScale = it) }, colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
-                    Text("Color", color = Color.Gray); Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                        listOf(Color.White, Color(0xFFDAA520), Color.Yellow, Color.Cyan, Color(0xFF00FF00)).forEach { c -> Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(c).clickable { subtitleConfig = subtitleConfig.copy(fontColor = c) }) }
+                    Text("Speed", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { subtitleSpeed = (subtitleSpeed - 5f).coerceAtLeast(50f) }, modifier = Modifier.size(32.dp)) { Text("-", color = Color.White, fontSize = 16.sp) }
+                        Text("${String.format("%.0f", subtitleSpeed)}%", color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                        IconButton(onClick = { subtitleSpeed = (subtitleSpeed + 5f).coerceAtMost(200f) }, modifier = Modifier.size(32.dp)) { Text("+", color = Color.White, fontSize = 16.sp) }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = subtitleConfig.isBold, onCheckedChange = { subtitleConfig = subtitleConfig.copy(isBold = it) }); Text("Bold", color = Color.White, fontSize = 13.sp) }
-                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = subtitleConfig.isItalic, onCheckedChange = { subtitleConfig = subtitleConfig.copy(isItalic = it) }); Text("Italic", color = Color.White, fontSize = 13.sp) }
-                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = subtitleConfig.borderEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(borderEnabled = it) }); Text("Border", color = Color.White, fontSize = 13.sp) }
-                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = subtitleConfig.shadowEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(shadowEnabled = it) }); Text("Shadow", color = Color.White, fontSize = 13.sp) }
-                    Text("Position: ${(subtitleConfig.position * 100).toInt()}%", color = Color.Gray)
-                    Slider(value = subtitleConfig.position, valueRange = 0.1f..0.95f, onValueChange = { subtitleConfig = subtitleConfig.copy(position = it) }, colors = SliderDefaults.colors(thumbColor = Color(0xFF00BFFF), activeTrackColor = Color(0xFF00BFFF)))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Font", color = Color.Gray); Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { showFontPicker = true; showSettings = false }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))) { Text("Choose Font", fontSize = 11.sp) }
-                        Button(onClick = { subtitleConfig = subtitleConfig.copy(fontPath = ""); customFontFamily = null }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) { Text("Default", fontSize = 11.sp) }
-                    }
-                    if (subtitleConfig.fontPath.isNotEmpty()) Text("Active: ${subtitleConfig.fontPath.split("/").last()}", color = Color(0xFFDAA520), fontSize = 10.sp)
+                    HorizontalDivider(color = Color.DarkGray)
+                    Row(modifier = Modifier.fillMaxWidth().clickable { showSubtitlePanel = false; showSettings = true }.padding(vertical = 8.dp)) { Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Customization", color = Color.White) }
                 } },
-                confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Done", color = Color(0xFF2196F3)) } },
+                confirmButton = { TextButton(onClick = { showSubtitlePanel = false }) { Text("OK", color = Color(0xFF2196F3)) } },
                 containerColor = Color(0xFF1E1E1E))
         }
 
-        // Track dialog
-        if (showTrackDialog) {
-            AlertDialog(onDismissRequest = { showTrackDialog = false }, title = { Text("Subtitle Track", color = Color.White) },
+        // Audio Track dialog (MX Player style)
+        if (showAudioDialog) {
+            AlertDialog(onDismissRequest = { showAudioDialog = false }, title = { Text("Audio Track", color = Color.White) },
                 text = { Column {
-                    Row(modifier = Modifier.fillMaxWidth().clickable { exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build(); selectedTrackLabel = "Off"; subtitleEnabled = false; showTrackDialog = false }.padding(8.dp)) { Text("Off", color = if (selectedTrackLabel == "Off") Color(0xFFE94560) else Color.White) }
-                    embeddedTracks.forEach { (label, lang) -> Row(modifier = Modifier.fillMaxWidth().clickable { exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguage(lang).build(); selectedTrackLabel = label; subtitleEnabled = true; showTrackDialog = false }.padding(8.dp)) { Text("$label ($lang)", color = if (selectedTrackLabel == label) Color(0xFFE94560) else Color.White) } }
-                    if (embeddedTracks.isEmpty()) Text("No embedded subtitles", color = Color.Gray, fontSize = 12.sp)
+                    embeddedAudioTracks.forEach { (label, lang) -> Row(modifier = Modifier.fillMaxWidth().clickable { exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).setPreferredTextLanguage(lang).build(); selectedAudioLabel = label; showAudioDialog = false }.padding(8.dp)) { RadioButton(selected = selectedAudioLabel == label, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF2196F3))); Spacer(modifier = Modifier.width(8.dp)); Text("$label ($lang)", color = Color.White) } }
+                    Row(modifier = Modifier.fillMaxWidth().clickable { exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build(); selectedAudioLabel = "Disabled"; showAudioDialog = false }.padding(8.dp)) { RadioButton(selected = selectedAudioLabel == "Disabled", onClick = null, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF2196F3))); Spacer(modifier = Modifier.width(8.dp)); Text("Disable", color = Color.White) }
+                    HorizontalDivider(color = Color.DarkGray)
+                    Text("Synchronization", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { subtitleSync = (subtitleSync - 0.5f).coerceAtLeast(-10f) }, modifier = Modifier.size(32.dp)) { Text("-", color = Color.White, fontSize = 16.sp) }; Text("${String.format("%.1f", subtitleSync)}s", color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp)); IconButton(onClick = { subtitleSync = (subtitleSync + 0.5f).coerceAtMost(10f) }, modifier = Modifier.size(32.dp)) { Text("+", color = Color.White, fontSize = 16.sp) } }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) { Checkbox(checked = true, onCheckedChange = null, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2196F3))); Text("AV sync", color = Color.White) }
                 } },
-                confirmButton = { TextButton(onClick = { showTrackDialog = false }) { Text("Cancel", color = Color(0xFFE94560)) } },
+                confirmButton = { TextButton(onClick = { showAudioDialog = false }) { Text("OK", color = Color(0xFF2196F3)) } },
+                containerColor = Color(0xFF1E1E1E))
+        }
+
+        // Shortcut Panel (MX Player style)
+        if (showShortcutPanel) {
+            AlertDialog(onDismissRequest = { showShortcutPanel = false }, title = { Text("Shortcuts", color = Color.White) },
+                text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            listOf("Screen Rotation" to { videoRotation = (videoRotation + 90f) % 360f }, "Background Play" to {}, "Mute" to { exoPlayer.volume = 0f }, "Equalizer" to {}, "Sleep Timer" to {}, "Night Mode" to {}).forEach { (name, action) ->
+                                Row(modifier = Modifier.fillMaxWidth().clickable { action() }.padding(vertical = 4.dp)) { Checkbox(checked = false, onCheckedChange = null, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2196F3))); Text(name, color = Color.White, fontSize = 12.sp) }
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            listOf("Playback Speed" to { showSpeedMenu = true; showShortcutPanel = false }, "Loop" to {}, "Shuffle" to {}, "Audio Effect" to {}, "A-B Repeat" to {}, "Screenshot" to {}).forEach { (name, action) ->
+                                Row(modifier = Modifier.fillMaxWidth().clickable { action() }.padding(vertical = 4.dp)) { Checkbox(checked = false, onCheckedChange = null, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2196F3))); Text(name, color = Color.White, fontSize = 12.sp) }
+                            }
+                        }
+                    }
+                } },
+                confirmButton = { TextButton(onClick = { showShortcutPanel = false }) { Text("OK", color = Color(0xFF2196F3)) } },
+                containerColor = Color(0xFF1E1E1E))
+        }
+
+        // Subtitle Settings (MX Player style)
+        if (showSettings) {
+            AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Subtitle Settings", color = Color.White, fontWeight = FontWeight.Bold) },
+                text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    // Layout section
+                    Text("Layout", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Alignment: Center", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Bottom margins: ${subtitleConfig.position}", color = Color.White, fontSize = 13.sp)
+                    Slider(value = subtitleConfig.position, valueRange = 0.1f..0.95f, onValueChange = { subtitleConfig = subtitleConfig.copy(position = it) }, colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
+                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = false, onCheckedChange = null, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2196F3))); Text("Background", color = Color.White, fontSize = 13.sp) }
+                    HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 4.dp))
+                    // Text section
+                    Text("Text", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Font: ${subtitleConfig.fontPath.split("/").lastOrNull() ?: "Default"}", color = Color.White, fontSize = 13.sp, modifier = Modifier.clickable { showFontPicker = true; showSettings = false }.padding(vertical = 4.dp))
+                    Text("Size: ${subtitleConfig.fontScale.toInt()}", color = Color.White, fontSize = 13.sp)
+                    Slider(value = subtitleConfig.fontScale, valueRange = 50f..200f, onValueChange = { subtitleConfig = subtitleConfig.copy(fontScale = it) }, colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
+                    Text("Scale: ${subtitleConfig.fontScale.toInt()}%", color = Color.White, fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) { Text("Color", color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f)); Checkbox(checked = subtitleConfig.isBold, onCheckedChange = { subtitleConfig = subtitleConfig.copy(isBold = it) }, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2196F3))); Text("Bold", color = Color.White, fontSize = 12.sp) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
+                        listOf(Color.White, Color(0xFFDAA520), Color.Yellow, Color.Cyan, Color(0xFF00FF00)).forEach { c -> Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(c).clickable { subtitleConfig = subtitleConfig.copy(fontColor = c) }) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = subtitleConfig.borderEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(borderEnabled = it) }, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2196F3))); Text("Border", color = Color.White, fontSize = 13.sp) }
+                    Slider(value = subtitleConfig.borderWidth, valueRange = 50f..500f, onValueChange = { subtitleConfig = subtitleConfig.copy(borderWidth = it) }, colors = SliderDefaults.colors(thumbColor = Color(0xFF2196F3), activeTrackColor = Color(0xFF2196F3)))
+                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = subtitleConfig.shadowEnabled, onCheckedChange = { subtitleConfig = subtitleConfig.copy(shadowEnabled = it) }, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2196F3))); Text("Shadow", color = Color.White, fontSize = 13.sp) }
+                } },
+                confirmButton = { TextButton(onClick = { showSettings = false }) { Text("OK", color = Color(0xFF2196F3)) } },
+                containerColor = Color(0xFF1E1E1E))
+        }
+
+        // Info dialog
+        if (showInfoDialog) {
+            AlertDialog(onDismissRequest = { showInfoDialog = false }, title = { Text("Information", color = Color.White) },
+                text = { Text(videoInfo, color = Color.White, fontSize = 12.sp) },
+                confirmButton = { TextButton(onClick = { showInfoDialog = false }) { Text("OK", color = Color(0xFF2196F3)) } },
                 containerColor = Color(0xFF1E1E1E))
         }
 
@@ -253,7 +333,19 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                 text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     if (availableFonts.isEmpty()) Text("No fonts found.", color = Color.Gray) else availableFonts.forEach { f -> Row(modifier = Modifier.fillMaxWidth().clickable { subtitleConfig = subtitleConfig.copy(fontPath = f.absolutePath); showFontPicker = false }.padding(8.dp)) { Text(f.name, color = Color.White) } }
                 } },
-                confirmButton = { TextButton(onClick = { showFontPicker = false }) { Text("Cancel", color = Color(0xFFE94560)) } },
+                confirmButton = { TextButton(onClick = { showFontPicker = false }) { Text("Cancel", color = Color(0xFF2196F3)) } },
+                containerColor = Color(0xFF1E1E1E))
+        }
+
+        // Track dialog
+        if (showTrackDialog) {
+            AlertDialog(onDismissRequest = { showTrackDialog = false }, title = { Text("Subtitle Track", color = Color.White) },
+                text = { Column {
+                    Row(modifier = Modifier.fillMaxWidth().clickable { exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build(); selectedTrackLabel = "Off"; subtitleEnabled = false; showTrackDialog = false }.padding(8.dp)) { RadioButton(selected = selectedTrackLabel == "Off", onClick = null, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF2196F3))); Spacer(modifier = Modifier.width(8.dp)); Text("Off", color = Color.White) }
+                    embeddedTracks.forEach { (label, lang) -> Row(modifier = Modifier.fillMaxWidth().clickable { exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguage(lang).build(); selectedTrackLabel = label; subtitleEnabled = true; showTrackDialog = false }.padding(8.dp)) { RadioButton(selected = selectedTrackLabel == label, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF2196F3))); Spacer(modifier = Modifier.width(8.dp)); Text("$label ($lang)", color = Color.White) } }
+                    if (embeddedTracks.isEmpty()) Text("No embedded subtitles", color = Color.Gray, fontSize = 12.sp)
+                } },
+                confirmButton = { TextButton(onClick = { showTrackDialog = false }) { Text("Cancel", color = Color(0xFF2196F3)) } },
                 containerColor = Color(0xFF1E1E1E))
         }
 
