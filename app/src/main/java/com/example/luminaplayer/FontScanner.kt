@@ -19,20 +19,8 @@ object FontScanner {
         } catch (_: Exception) {}
         return fonts.distinctBy { it.name }.sortedBy { it.name }.take(30)
     }
-
     private fun findTtf(dir: File, result: MutableList<File>) {
-        try {
-            val files = dir.listFiles() ?: return
-            for (f in files) {
-                when {
-                    f.isFile && f.extension.lowercase() == "ttf" -> result.add(f)
-                    f.isDirectory && !f.name.startsWith(".") && result.size < 30 -> findTtf(f, result)
-                }
-            }
-        } catch (_: Exception) {}
+        try { val files = dir.listFiles() ?: return; for (f in files) { when { f.isFile && f.extension.lowercase() == "ttf" -> result.add(f); f.isDirectory && !f.name.startsWith(".") && result.size < 30 -> findTtf(f, result) } } } catch (_: Exception) {}
     }
-
-    fun loadFont(path: String): FontFamily? = try {
-        val f = File(path); if (f.exists() && f.canRead()) FontFamily(Font(f)) else null
-    } catch (_: Exception) { null }
+    fun loadFont(path: String): FontFamily? = try { val f = File(path); if (f.exists() && f.canRead()) FontFamily(Font(f)) else null } catch (_: Exception) { null }
 }

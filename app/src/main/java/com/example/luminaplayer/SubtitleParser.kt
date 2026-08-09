@@ -5,141 +5,68 @@ import android.net.Uri
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
-data class SubtitleEntry(
-    val startTimeMs: Long,
-    val endTimeMs: Long,
-    val text: String
-)
+data class SubtitleEntry(val startTimeMs: Long, val endTimeMs: Long, val text: String)
 
 object SubtitleParser {
-
     fun parseSrt(context: Context, uri: Uri): List<SubtitleEntry> {
         val entries = mutableListOf<SubtitleEntry>()
         try {
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                val reader = BufferedReader(InputStreamReader(inputStream, "UTF-8"))
-                val content = reader.readText()
-                val blocks = content.split(Regex("\n\\s*\n"))
-
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val reader = BufferedReader(InputStreamReader(stream))
+                val blocks = reader.readText().trim().split(Regex("\n\n+"))
                 for (block in blocks) {
                     val lines = block.trim().split("\n")
-                    if (lines.size >= 3) {
-                        val timeLine = lines[1]
-                        val timeParts = timeLine.split(" --> ")
-                        if (timeParts.size == 2) {
-                            val startMs = parseSrtTime(timeParts[0].trim())
-                            val endMs = parseSrtTime(timeParts[1].trim())
-                            val text = lines.drop(2).joinToString("\n").trim()
-                            if (text.isNotEmpty()) {
-                                entries.add(SubtitleEntry(startMs, endMs, text))
-                            }
-                        }
+                    if (lines.size < 3) continue
+                    val timeLine = lines[1]
+                    val match = Regex("(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})").find(timeLine)
+                    if (match != null) {
+                        val (h1,m1,s1,ms1,h2,m2,s2,ms2) = match.destructured
+                        val start = h1.toLong()*3600000 + m1.toLong()*60000 + s1.toLong()*1000 + ms1.toLong()
+                        val end = h2.toLong()*3600000 + m2.toLong()*60000 + s2.toLong()*1000 + ms2.toLong()
+                        val text = lines.drop(2).joinToString("\n").replace(Regex("<[^>]+>"), "")
+                        entries.add(SubtitleEntry(start, end, text))
                     }
                 }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (_: Exception) {}
         return entries
     }
 
     fun parseAss(context: Context, uri: Uri): List<SubtitleEntry> {
         val entries = mutableListOf<SubtitleEntry>()
         try {
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                val reader = BufferedReader(InputStreamReader(inputStream, "UTF-8"))
-                val lines = reader.readLines()
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val lines = BufferedReader(InputStreamReader(stream)).readLines()
                 var inEvents = false
-                var format: List<String> = emptyList()
-
                 for (line in lines) {
-                    val trimmed = line.trim()
-                    when {
-                        trimmed == "[Events]" -> inEvents = true
-                        trimmed.startsWith("[") && trimmed.endsWith("]") -> inEvents = false
-                        inEvents && trimmed.startsWith("Format:") -> {
-                            format = trimmed.removePrefix("Format:").split(",").map { it.trim() }
-                        }
-                        inEvents && trimmed.startsWith("Dialogue:") -> {
-                            val data = trimmed.removePrefix("Dialogue:").split(",", limit = format.size)
-                            if (data.size >= format.size) {
-                                val startIdx = format.indexOf("Start")
-                                val endIdx = format.indexOf("End")
-                                val textIdx = format.indexOf("Text")
-
-                                if (startIdx >= 0 && endIdx >= 0 && textIdx >= 0) {
-                                    val startMs = parseAssTime(data[startIdx].trim())
-                                    val endMs = parseAssTime(data[endIdx].trim())
-                                    var text = data[textIdx].trim()
-                                    // Remove ASS style tags
-                                    text = text.replace(Regex("\\{[^}]*\\}"), "")
-                                    text = text.replace(Regex("\\\\N"), "\n")
-                                    text = text.replace(Regex("\\\\n"), "\n")
-                                    text = text.trim()
-                                    if (text.isNotEmpty()) {
-                                        entries.add(SubtitleEntry(startMs, endMs, text))
-                                    }
-                                }
-                            }
+                    if (line.startsWith("[Events]")) { inEvents = true; continue }
+                    if (line.startsWith("[") && inEvents) break
+                    if (inEvents && line.startsWith("Dialogue:")) {
+                        val parts = line.substringAfter("Dialogue:").split(",", 9)
+                        if (parts.size >= 10) {
+                            val start = parseAssTime(parts[1].trim())
+                            val end = parseAssTime(parts[2].trim())
+                            val text = parts[9].trim().replace("\N", "\n").replace(Regex("\{[^}]*\}"), "").replace(Regex("<[^>]+>"), "")
+                            entries.add(SubtitleEntry(start, end, text))
                         }
                     }
                 }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (_: Exception) {}
         return entries
     }
 
-    fun detectAndParse(context: Context, uri: Uri): List<SubtitleEntry> {
-        val fileName = getFileName(context, uri).lowercase()
-        return when {
-            fileName.endsWith(".srt") -> parseSrt(context, uri)
-            fileName.endsWith(".ass") || fileName.endsWith(".ssa") -> parseAss(context, uri)
-            else -> parseSrt(context, uri) // Default to SRT
-        }
-    }
-
-    private fun parseSrtTime(time: String): Long {
-        try {
-            val parts = time.replace(",", ".").split(":")
-            if (parts.size == 3) {
-                val h = parts[0].trim().toLong()
-                val m = parts[1].trim().toLong()
-                val sParts = parts[2].trim().split(".")
-                val s = sParts[0].toLong()
-                val ms = if (sParts.size > 1) sParts[1].toLong() * (if (sParts[1].length == 1) 100 else if (sParts[1].length == 2) 10 else 1) else 0
-                return h * 3600000 + m * 60000 + s * 1000 + ms
-            }
-        } catch (e: Exception) {}
-        return 0L
-    }
-
     private fun parseAssTime(time: String): Long {
-        try {
-            val parts = time.trim().split(":")
-            if (parts.size == 3) {
-                val h = parts[0].trim().toLong()
-                val m = parts[1].trim().toLong()
-                val sParts = parts[2].trim().split(".")
-                val s = sParts[0].toLong()
-                val ms = if (sParts.size > 1) sParts[1].toLong() * 10 else 0
-                return h * 3600000 + m * 60000 + s * 1000 + ms
-            }
-        } catch (e: Exception) {}
-        return 0L
+        val match = Regex("(\d):(\d{2}):(\d{2})[.](\d{2})").find(time) ?: return 0
+        val (h,m,s,cs) = match.destructured
+        return h.toLong()*3600000 + m.toLong()*60000 + s.toLong()*1000 + cs.toLong()*10
     }
 
-    private fun getFileName(context: Context, uri: Uri): String {
-        var name = "subtitle.srt"
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (idx >= 0) {
-                    name = cursor.getString(idx) ?: name
-                }
-            }
+    fun detectAndParse(context: Context, uri: Uri): List<SubtitleEntry> {
+        val name = uri.lastPathSegment?.lowercase() ?: ""
+        return when {
+            name.endsWith(".ass") || name.endsWith(".ssa") -> parseAss(context, uri)
+            else -> parseSrt(context, uri)
         }
-        return name
     }
 }
