@@ -38,18 +38,24 @@ object SubtitleParser {
         val entries = mutableListOf<SubtitleEntry>()
         try {
             context.contentResolver.openInputStream(uri)?.use { stream ->
-                val lines = BufferedReader(InputStreamReader(stream)).readLines()
+                val allLines = BufferedReader(InputStreamReader(stream)).readLines()
                 var inEvents = false
-                for (line in lines) {
+                for (line in allLines) {
                     if (line.startsWith("[Events]")) { inEvents = true; continue }
                     if (line.startsWith("[") && inEvents) break
                     if (inEvents && line.startsWith("Dialogue:")) {
-                        val parts = line.substringAfter("Dialogue:").split(",", 9)
-                        if (parts.size >= 10) {
-                            val start = parseAssTime(parts[1].trim())
-                            val end = parseAssTime(parts[2].trim())
-                            val text = parts[9].trim().replace("\\N", "\n").replace(Regex("\\{[^}]*\\}"), "").replace(Regex("<[^>]+>"), "")
-                            entries.add(SubtitleEntry(start, end, text))
+                        val afterDialogue = line.substringAfter("Dialogue:")
+                        val partsList = afterDialogue.split(",")
+                        if (partsList.size >= 10) {
+                            val start = parseAssTime(partsList[1].trim())
+                            val end = parseAssTime(partsList[2].trim())
+                            val rawText = partsList[9].trim()
+                            val cleanText = rawText
+                                .replace("\\N", "\n")
+                                .replace("\\n", "\n")
+                                .replace(Regex("\\{[^}]*\\}"), "")
+                                .replace(Regex("<[^>]+>"), "")
+                            entries.add(SubtitleEntry(start, end, cleanText))
                         }
                     }
                 }
