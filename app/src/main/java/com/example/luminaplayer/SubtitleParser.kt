@@ -8,21 +8,23 @@ import java.io.InputStreamReader
 data class SubtitleEntry(val startTimeMs: Long, val endTimeMs: Long, val text: String)
 
 object SubtitleParser {
+
     fun parseSrt(context: Context, uri: Uri): List<SubtitleEntry> {
         val entries = mutableListOf<SubtitleEntry>()
         try {
             context.contentResolver.openInputStream(uri)?.use { stream ->
                 val reader = BufferedReader(InputStreamReader(stream))
-                val blocks = reader.readText().trim().split(Regex("\n\n+"))
+                val content = reader.readText().trim()
+                val blocks = content.split(Regex("\n\n+"))
                 for (block in blocks) {
                     val lines = block.trim().split("\n")
                     if (lines.size < 3) continue
                     val timeLine = lines[1]
-                    val match = Regex("(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})").find(timeLine)
+                    val match = Regex("(\\d{2}):(\\d{2}):(\\d{2})[,.](\\d{3})\\s*-->\\s*(\\d{2}):(\\d{2}):(\\d{2})[,.](\\d{3})").find(timeLine)
                     if (match != null) {
-                        val (h1,m1,s1,ms1,h2,m2,s2,ms2) = match.destructured
-                        val start = h1.toLong()*3600000 + m1.toLong()*60000 + s1.toLong()*1000 + ms1.toLong()
-                        val end = h2.toLong()*3600000 + m2.toLong()*60000 + s2.toLong()*1000 + ms2.toLong()
+                        val g = match.groupValues
+                        val start = g[1].toLong() * 3600000 + g[2].toLong() * 60000 + g[3].toLong() * 1000 + g[4].toLong()
+                        val end = g[5].toLong() * 3600000 + g[6].toLong() * 60000 + g[7].toLong() * 1000 + g[8].toLong()
                         val text = lines.drop(2).joinToString("\n").replace(Regex("<[^>]+>"), "")
                         entries.add(SubtitleEntry(start, end, text))
                     }
@@ -46,7 +48,7 @@ object SubtitleParser {
                         if (parts.size >= 10) {
                             val start = parseAssTime(parts[1].trim())
                             val end = parseAssTime(parts[2].trim())
-                            val text = parts[9].trim().replace("\N", "\n").replace(Regex("\{[^}]*\}"), "").replace(Regex("<[^>]+>"), "")
+                            val text = parts[9].trim().replace("\\N", "\n").replace(Regex("\\{[^}]*\\}"), "").replace(Regex("<[^>]+>"), "")
                             entries.add(SubtitleEntry(start, end, text))
                         }
                     }
@@ -57,9 +59,9 @@ object SubtitleParser {
     }
 
     private fun parseAssTime(time: String): Long {
-        val match = Regex("(\d):(\d{2}):(\d{2})[.](\d{2})").find(time) ?: return 0
-        val (h,m,s,cs) = match.destructured
-        return h.toLong()*3600000 + m.toLong()*60000 + s.toLong()*1000 + cs.toLong()*10
+        val match = Regex("(\\d):(\\d{2}):(\\d{2})[.](\\d{2})").find(time) ?: return 0
+        val g = match.groupValues
+        return g[1].toLong() * 3600000 + g[2].toLong() * 60000 + g[3].toLong() * 1000 + g[4].toLong() * 10
     }
 
     fun detectAndParse(context: Context, uri: Uri): List<SubtitleEntry> {
