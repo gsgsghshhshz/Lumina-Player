@@ -120,7 +120,7 @@ fun PlayerScreen(videoUri: Uri, subtitleUri: Uri?, onBack: () -> Unit) {
                             }
                         }
                         embeddedTracks = subs; embeddedAudioTracks = audios
-                        try { videoInfo = "Resolution: ${this@apply.videoFormat?.width}x${this@apply.videoFormat?.height}\nCodec: ${this@apply.videoFormat?.codecName ?: "N/A"}\nAudio: ${this@apply.audioFormat?.codecName ?: "N/A"}\nDuration: ${formatTime(duration)}\nFile: $videoTitle" } catch (_: Exception) {}
+                        try { videoInfo = "Resolution: ${this@apply.videoFormat?.width}x${this@apply.videoFormat?.height}\nCodec: ${this@apply.videoFormat?.sampleMimeType ?: "N/A"}\nAudio: ${this@apply.audioFormat?.sampleMimeType ?: "N/A"}\nDuration: ${formatTime(duration)}\nFile: $videoTitle" } catch (_: Exception) {}
                     }
                 }
                 override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
